@@ -446,6 +446,11 @@ def locate(move_fn=None, shoot_fn=None, rot180=False, x=0.17, z=0.0, rounds=7, l
     for i in range(rounds):
         r = math.hypot(x, z); s1 = round(90 + math.degrees(math.atan2(-z, x)))
         look = poses(r)[0]
+        if not look and r < 0.141:
+            # 内側の端: 見る姿勢が作れない所まで詰まったら、作れるいちばん手前（14.1 cm）にとどめて挟みに行く
+            # （2026-09-29: 15 cm の P2 で推定が 13.6 cm になり、見つけているのにあきらめた。挟む姿勢は 13 cm でも作れる）
+            k = 0.141 / max(r, 1e-6); x, z = x * k, z * k
+            log('round %d: at the inner edge (%.1f cm) — clamp to 14.1 cm and stop refining' % (i, r * 100)); break
         if not look:
             log('round %d: (%.3f, %.3f) is out of reach' % (i, x, z)); return None
         move_fn(s1, look)

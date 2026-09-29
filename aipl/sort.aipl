@@ -67,7 +67,8 @@ class Planner {
       if (c == "none") {
         // 探索は手の届く範囲をもれなく一巡する。1 つ以上置いた後に見つからなければ、もう残っていない
         misses = misses + 1;
-        if (placed > 0) { print("  no more cubes in reach — done"); tries = 1000; }
+        if (placed > 0) { if (misses >= 2) { print("  no more cubes in reach — done"); tries = 1000; }
+                          else { print("  try " ++ (tries + 1) ++ ": nothing found — survey once more"); } }
         else { if (misses >= 3) { print("  no cube in reach after 3 surveys"); tries = 1000; }
                else { print("  try " ++ (tries + 1) ++ ": no cube in reach — survey again"); } }
         tries = tries + 1;
@@ -98,6 +99,7 @@ class Planner {
             r = now d.go(b, "set 6 30 600") timeout 5000 else 0; wait(850);                                   // 放す
             r = now d.go(b, "pose " ++ at ++ " 80 50 50 90 30 2000") timeout 5000 else 0; wait(2250);        // 上がる
             placed = placed + 1;
+            misses = 0;
             if (c == "green") { need = "blue"; } else { need = "green"; }
             print("  placed " ++ placed ++ " cube(s)");
           } else {
