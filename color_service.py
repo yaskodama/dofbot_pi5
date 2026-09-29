@@ -428,10 +428,44 @@ def do_held(mode):
     v = sorted(a6)[len(a6) // 2]
     print('  held(real) servo6 = %s (limit %d)' % (a6, lim), flush=True)
     state['held_v'] = v
+    with lock:
+        state.setdefault('held_hist', []).append((time.time(), v))
     # 閉じ切れずに止まったら「挟めた」。指令 145 で空なら 144〜145、3 cm の立方体を挟むと指がたわんで 139（2026-09-29 実測）。
     # 以前の 125〜134（無負荷の指の開きから決めた）では挟めているのに「挟めていない」とし、振り付けが指を開いて落としていた。
     # 開いた指（例: 40）は数えない
     return 'yes' if 120 <= v <= lim else 'no'
+
+
+def do_check(arg):
+    """check <sim|real> <base>: 置き場（土台 base、17 cm）を撮って、そこにある立方体の色（green|blue|none）"""
+    w = arg.split()
+    mode = w[0] if w else 'real'
+    try:
+        s1 = int(w[1])
+    except (IndexError, ValueError):
+        return 'err'
+    look = loc.poses(0.17)[0]
+    try:
+        if mode == 'sim':
+            urllib.request.urlopen('http://127.0.0.1:8080/api/arm/sim?cmd=pose+%d+%d+%d+%d+90+30+2500' % (s1, look[0], look[1], look[2]), timeout=5).read()
+            time.sleep(2.8)
+            img = fresh_frame('simframe', time.time() + 0.1)
+        else:
+            loc.move(s1, look, 2500, 30); time.sleep(2.8)
+            img = fresh_frame('realframe', time.time() + 0.3, wait=4)
+    except Exception as ex:
+        print('  check stopped: %s' % ex, flush=True)
+        return 'err'
+    if not img:
+        return 'err'
+    W, H, px = img
+    best = None
+    for col in ('green', 'blue'):
+        b = loc.blob(px, W, H, False, col)
+        if b and (best is None or b[3] > best[1]):
+            best = (col, b[3])
+    print('  check(%s) base %d -> %s' % (mode, s1, best), flush=True)
+    return best[0] if best else 'none'
 
 
 def get_loc(arg):
@@ -576,6 +610,12 @@ class Hd(BaseHTTPRequestHandler):
             self.send_header('X-W', str(w)); self.send_header('X-H', str(h)); self.send_header('X-Age', '%.2f' % (time.time() - t))
             self.end_headers()
             self.wfile.write(body)
+        elif p == '/held':                               # 挟めた判定の読み戻しの履歴（since= 以降）
+            kv = dict(x.split('=', 1) for x in q.split('&') if '=' in x)
+            since = float(kv.get('since', '0'))
+            with lock:
+                h = [x for x in state.get('held_hist', []) if x[0] >= since]
+            self._send(json.dumps(h), 'application/json')
         elif p == '/geo':
             with lock:
                 g = state.get('geo') or {}
@@ -620,6 +660,8 @@ def serve(key, addr, reqid, actor, meth, arg):
         plan_done(k, ans)
     elif meth == 'get':
         ans = get_loc(arg)
+    elif meth == 'check':
+        ans = do_check(arg)
     elif meth == 'held':
         k = plan_push(w[0] if w else 'real', 'held?')
         ans = do_held('sim' if w and w[0] == 'sim' else 'real')
