@@ -1,0 +1,126 @@
+Compiler stub: compiler.ml
+[info] -f: /Users/kodamay/dofbot_pi5/aipl/r_sort_sim.repl
+[script] /Users/kodamay/dofbot_pi5/aipl/r_sort_sim.repl
+[script] load /Users/kodamay/dofbot_pi5/aipl/sort_sim.aipl
+[Loaded] /Users/kodamay/dofbot_pi5/aipl/sort_sim.aipl
+[script] compile
+[Defined class Dancer]
+[Registered types for class Dancer: go/2]
+[Defined class Eye]
+[Registered types for class Eye: locate/2, lower/2, get/2]
+[Defined class Planner]
+[Registered types for class Planner: sort/4]
+[Defined class Main]
+[Registered types for class Main: run/3]
+[Compiled]
+[Script execution completed]
+== 1. simulator (Mac)
+  pose 90 90 90 90 90 30 1500  -> ok pose 90 90 90 90 90 30 ms=1500
+ABCL/c+> 
+[REPL thread error] Thread.Exit
+  locate(sim, grip 30) = green
+  base = 90
+  pre = 61 39 5
+  grasp = 53 27 25
+  try 1: grasp at base 90
+  set 6 30 500  -> ok set 6 -> 30 ms=500
+  pose 90 80 50 50 90 30 1200  -> ok pose 90 80 50 50 90 30 ms=1200
+  lower(here 30) = err
+  try 1: could not lower (err) — look again
+  pose 90 80 50 50 90 30 1200  -> ok pose 90 80 50 50 90 30 ms=1200
+  locate(sim, grip 30) = green
+  base = 90
+  pre = 61 39 5
+  grasp = 53 27 25
+  try 2: grasp at base 90
+  set 6 30 500  -> ok set 6 -> 30 ms=500
+  pose 90 80 50 50 90 30 1200  -> ok pose 90 80 50 50 90 30 ms=1200
+  lower(here 30) = err
+  try 2: could not lower (err) — look again
+  pose 90 80 50 50 90 30 1200  -> ok pose 90 80 50 50 90 30 ms=1200
+  locate(sim, grip 30) = green
+  base = 90
+  pre = 61 39 5
+  grasp = 53 27 25
+  try 3: grasp at base 90
+  set 6 30 500  -> ok set 6 -> 30 ms=500
+  pose 90 80 50 50 90 30 1200  -> ok pose 90 80 50 50 90 30 ms=1200
+  lower(here 30) = err
+  try 3: could not lower (err) — look again
+  pose 90 80 50 50 90 30 1200  -> ok pose 90 80 50 50 90 30 ms=1200
+  locate(sim, grip 30) = green
+  base = 90
+  pre = 61 39 5
+  grasp = 53 27 25
+  try 4: grasp at base 90
+  set 6 30 500  -> ok set 6 -> 30 ms=500
+  pose 90 80 50 50 90 30 1200  -> ok pose 90 80 50 50 90 30 ms=1200
+  lower(here 30) = err
+  try 4: could not lower (err) — look again
+  pose 90 80 50 50 90 30 1200  -> ok pose 90 80 50 50 90 30 ms=1200
+  locate(sim, grip 30) = green
+  base = 90
+  pre = 61 39 5
+  grasp = 53 27 25
+  try 5: grasp at base 90
+  set 6 30 500  -> ok set 6 -> 30 ms=500
+  pose 90 80 50 50 90 30 1200  -> ok pose 90 80 50 50 90 30 ms=1200
+  lower(here 30) = err
+  try 5: could not lower (err) — look again
+  pose 90 80 50 50 90 30 1200  -> ok pose 90 80 50 50 90 30 ms=1200
+  locate(sim, grip 30) = green
+  base = 90
+  pre = 61 39 5
+  grasp = 53 27 25
+  try 6: grasp at base 90
+  set 6 30 500  -> ok set 6 -> 30 ms=500
+  pose 90 80 50 50 90 30 1200  -> ok pose 90 80 50 50 90 30 ms=1200
+  lower(here 30) = err
+  try 6: could not lower (err) — look again
+  pose 90 80 50 50 90 30 1200  -> ok pose 90 80 50 50 90 30 ms=1200
+  locate(sim, grip 30) = green
+  base = 90
+  pre = 61 39 5
+  grasp = 53 27 25
+  try 7: grasp at base 90
+  set 6 30 500  -> ok set 6 -> 30 ms=500
+  pose 90 80 50 50 90 30 1200  -> ok pose 90 80 50 50 90 30 ms=1200
+  lower(here 30) = err
+  try 7: could not lower (err) — look again
+  pose 90 80 50 50 90 30 1200  -> ok pose 90 80 50 50 90 30 ms=1200
+  locate(sim, grip 30) = green
+  base = 90
+  pre = 61 39 5
+  grasp = 53 27 25
+  try 8: grasp at base 90
+  set 6 30 500  -> ok set 6 -> 30 ms=500
+  pose 90 80 50 50 90 30 1200  -> ok pose 90 80 50 50 90 30 ms=1200
+  lower(here 30) = err
+  try 8: could not lower (err) — look again
+  pose 90 80 50 50 90 30 1200  -> ok pose 90 80 50 50 90 30 ms=1200
+  locate(sim, grip 30) = green
+  base = 90
+  pre = 61 39 5
+  grasp = 53 27 25
+  try 9: grasp at base 90
+  set 6 30 500  -> ok set 6 -> 30 ms=500
+  pose 90 80 50 50 90 30 1200  -> ok pose 90 80 50 50 90 30 ms=1200
+  lower(here 30) = err
+  try 9: could not lower (err) — look again
+  pose 90 80 50 50 90 30 1200  -> ok pose 90 80 50 50 90 30 ms=1200
+  locate(sim, grip 30) = green
+  base = 90
+  pre = 61 39 5
+  grasp = 53 27 25
+  try 10: grasp at base 90
+  set 6 30 500  -> ok set 6 -> 30 ms=500
+  pose 90 80 50 50 90 30 1200  -> ok pose 90 80 50 50 90 30 ms=1200
+  lower(here 30) = err
+  try 10: could not lower (err) — look again
+  pose 90 80 50 50 90 30 1200  -> ok pose 90 80 50 50 90 30 ms=1200
+  locate(sim, grip 30) = green
+  gave up after 10 tries
+  set 6 30 500  -> ok set 6 -> 30 ms=500
+  pose 90 90 90 90 90 30 1500  -> ok pose 90 90 90 90 90 30 ms=1500
+== simulator placed at base 0
+== done

@@ -1,0 +1,123 @@
+Compiler stub: compiler.ml
+[info] -f: /Users/kodamay/dofbot_pi5/aipl/r_sort.repl
+[script] /Users/kodamay/dofbot_pi5/aipl/r_sort.repl
+[script] load /Users/kodamay/dofbot_pi5/aipl/sort.aipl
+[Loaded] /Users/kodamay/dofbot_pi5/aipl/sort.aipl
+[script] compile
+[Defined class Dancer]
+[Registered types for class Dancer: go/2]
+[Defined class Eye]
+[Registered types for class Eye: locate/2, lower/2, get/2]
+[Defined class Planner]
+[Registered types for class Planner: sort/4]
+[Defined class Main]
+[Registered types for class Main: run/3]
+[Compiled]
+[Script execution completed]
+== 1. simulator (Mac)
+  pose 90 90 90 90 90 30 1500  -> ok pose 90 90 90 90 90 30 ms=1500
+ABCL/c+> 
+[REPL thread error] Thread.Exit
+  locate(sim, grip 30) = green
+  base = 90
+  pre = 61 37 7
+  grasp = 53 26 26
+  try 1: grasp at base 90
+  set 6 30 500  -> ok set 6 -> 30 ms=500
+  pose 90 80 50 50 90 30 1200  -> ok pose 90 80 50 50 90 30 ms=1200
+  lower(here 30) = ok 2.8
+  set 6 110 600  -> ok set 6 -> 110 ms=600
+  pose 90 61 37 7 90 110 1000  -> ok pose 90 61 37 7 90 110 ms=1000
+  pose 90 80 50 50 90 110 1200  -> ok pose 90 80 50 50 90 110 ms=1200
+  locate(sim, grip 110) = none
+  try 1: the table is empty — the cube is in the hand
+  green -> right
+  pose 150 80 50 50 90 110 1500  -> ok pose 150 80 50 50 90 110 ms=1500
+  lower(150 17 110) = ok 2.8
+  set 6 30 600  -> ok set 6 -> 30 ms=600
+  pose 150 59 35 10 90 30 1000  -> ok pose 150 59 35 10 90 30 ms=1000
+  pose 90 90 90 90 90 30 1800  -> ok pose 90 90 90 90 90 30 ms=1800
+== simulator placed at base 150
+== 2. real arm (Xinu board)
+  pose 90 90 90 90 90 30 1500  -> ok pose 90 90 90 90 90 30 ms=1500
+  locate(real, grip 30) = blue
+  base = 120
+  pre = 77 17 6
+  grasp = 70 2 28
+  try 1: grasp at base 120
+  set 6 30 500  -> ok set 6 -> 30 ms=500
+  pose 120 80 50 50 90 30 1200  -> ok pose 120 80 50 50 90 30 ms=1200
+  lower(here 30) = ok 2.8
+  set 6 110 600  -> ok set 6 -> 110 ms=600
+  pose 120 77 17 6 90 110 1000  -> ok pose 120 77 17 6 90 110 ms=1000
+  pose 120 80 50 50 90 110 1200  -> ok pose 120 80 50 50 90 110 ms=1200
+  locate(real, grip 110) = blue
+  try 1: the cube is still on the table — try again
+  base = 90
+  pre = 49 53 8
+  grasp = 38 49 23
+  try 2: grasp at base 90
+  set 6 30 500  -> ok set 6 -> 30 ms=500
+  pose 90 80 50 50 90 30 1200  -> ok pose 90 80 50 50 90 30 ms=1200
+  lower(here 30) = ok 2.8
+  set 6 110 600  -> ok set 6 -> 110 ms=600
+  pose 90 49 53 8 90 110 1000  -> ok pose 90 49 53 8 90 110 ms=1000
+  pose 90 80 50 50 90 110 1200  -> ok pose 90 80 50 50 90 110 ms=1200
+  locate(real, grip 110) = blue
+  try 2: the cube is still on the table — try again
+  base = 96
+  pre = 74 22 5
+  grasp = 67 7 27
+  try 3: grasp at base 96
+  set 6 30 500  -> ok set 6 -> 30 ms=500
+  pose 96 80 50 50 90 30 1200  -> ok pose 96 80 50 50 90 30 ms=1200
+  lower(here 30) = ok 2.8
+  set 6 110 600  -> ok set 6 -> 110 ms=600
+  pose 96 74 22 5 90 110 1000  -> ok pose 96 74 22 5 90 110 ms=1000
+  pose 96 80 50 50 90 110 1200  -> ok pose 96 80 50 50 90 110 ms=1200
+  locate(real, grip 110) = err
+  try 3: the cube is still on the table — try again
+  base = 96
+  pre = 74 22 5
+  grasp = 67 7 27
+  try 4: grasp at base 96
+  set 6 30 500  -> ok set 6 -> 30 ms=500
+  pose 96 80 50 50 90 30 1200  -> ok pose 96 80 50 50 90 30 ms=1200
+  lower(here 30) = ok 2.8
+  set 6 110 600  -> ok set 6 -> 110 ms=600
+  pose 96 74 22 5 90 110 1000  -> ok pose 96 74 22 5 90 110 ms=1000
+  pose 96 80 50 50 90 110 1200  -> ok pose 96 80 50 50 90 110 ms=1200
+  locate(real, grip 110) = err
+  try 4: the cube is still on the table — try again
+  base = 96
+  pre = 74 22 5
+  grasp = 67 7 27
+  try 5: grasp at base 96
+  set 6 30 500  -> ok set 6 -> 30 ms=500
+  pose 96 80 50 50 90 30 1200  -> ok pose 96 80 50 50 90 30 ms=1200
+  lower(here 30) = ok 2.8
+  set 6 110 600  -> ok set 6 -> 110 ms=600
+  pose 96 74 22 5 90 110 1000  -> ok pose 96 74 22 5 90 110 ms=1000
+  pose 96 80 50 50 90 110 1200  -> ok pose 96 80 50 50 90 110 ms=1200
+  locate(real, grip 110) = err
+  try 5: the cube is still on the table — try again
+  base = 96
+  pre = 74 22 5
+  grasp = 67 7 27
+  try 6: grasp at base 96
+  set 6 30 500  -> ok set 6 -> 30 ms=500
+  pose 96 80 50 50 90 30 1200  -> ok pose 96 80 50 50 90 30 ms=1200
+  lower(here 30) = ok 2.8
+  set 6 110 600  -> ok set 6 -> 110 ms=600
+  pose 96 74 22 5 90 110 1000  -> ok pose 96 74 22 5 90 110 ms=1000
+  pose 96 80 50 50 90 110 1200  -> ok pose 96 80 50 50 90 110 ms=1200
+  locate(real, grip 110) = none
+  try 6: the table is empty — the cube is in the hand
+  blue -> left
+  pose 30 80 50 50 90 110 1500  -> 
+  lower(30 17 110) = err lower stopped: arm did not move: ''
+  set 6 30 600  -> 
+  pose 30 59 35 10 90 30 1000  -> 
+  pose 90 90 90 90 90 30 1800  -> 
+== real arm placed at base 30
+== done

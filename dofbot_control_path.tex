@@ -1,0 +1,371 @@
+% XeLaTeX
+\documentclass[a4paper,11pt]{article}
+\usepackage[top=22mm,bottom=22mm,left=22mm,right=22mm]{geometry}
+\usepackage{xeCJK}
+\setCJKmainfont{Hiragino Mincho ProN}
+\setCJKsansfont{Hiragino Sans}
+\setCJKmonofont{Hiragino Sans}
+\setmainfont{Times New Roman}
+\setsansfont{Helvetica}
+\setmonofont{Menlo}
+\usepackage{booktabs,array,longtable}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc,shapes.misc}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{amsmath}
+\usepackage[hidelinks]{hyperref}
+\lstset{basicstyle=\ttfamily\small,frame=single,breaklines=true,columns=fullflexible,keepspaces=true,showstringspaces=false,xleftmargin=1em,framexleftmargin=0.5em}
+\newcommand{\reg}[1]{\texttt{#1}}
+\setlength{\parskip}{0.4em}
+\setlength{\parindent}{0pt}
+
+\title{Mac から DOFBOT（Raspberry Pi 5）を動かす制御経路\\
+\large ―― 三層の命令，Linux を外した Xinu 版，AIPL 化，シミュレータ，UVC カメラドライバ ――}
+\author{法政大学 データサイエンスセンター長　児玉靖司}
+\date{2026年9月14日}
+
+\begin{document}
+\maketitle
+
+\section*{要旨}
+2026年9月14日に Mac から実機 DOFBOT を動かした際の制御経路を整理する。
+命令は「Mac → Linux（Pi 5）」「Linux → ドライバ基板」「ドライバ基板 → サーボ」の三層を経由する。
+Mac が送るのは Pi 上で実行させる Python コード、Pi が送るのは I\textsuperscript{2}C のレジスタ書き込み、
+そしてアーム側が理解するのは「サーボ番号・目標角・所要時間」だけである。逆運動学やカメラ処理はすべて上位（Pi または Mac）の仕事になる。
+同日午後，Linux を外して同じ Pi 5 に bare-metal の Xinu を載せ，Xinu が RP1 の I\textsuperscript{2}C を直接叩いてアームを動かした（第 \ref{sec:xinu} 節）。中間層が Linux＋Python から Xinu の C 関数一つに置き換わり，Mac から送る命令は Python コードから URL 一行になった。
+
+\section{全体像}
+
+\begin{center}
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+  node distance=9mm and 6mm,
+  box/.style={draw,rounded corners=2pt,minimum height=11mm,minimum width=30mm,align=center,font=\small},
+  lbl/.style={font=\scriptsize,align=center},
+  >={Stealth[length=2.5mm]}]
+\node[box,fill=blue!6]  (mac) {Mac\\Claude Code};
+\node[box,fill=green!8,right=18mm of mac] (pi) {Raspberry Pi 5\\Debian 12 (Linux)\\\texttt{arm.py} + \texttt{Arm\_Lib}};
+\node[box,fill=orange!10,right=18mm of pi] (brd) {Yahboom ドライバ基板\\（マイコン, I\textsuperscript{2}C 0x15）};
+\node[box,fill=red!6,right=18mm of brd] (srv) {バスサーボ ×6\\ID 1--6};
+\node[box,fill=gray!10,below=of pi] (cam) {USB カメラ\\\texttt{/dev/video0}};
+\draw[->,thick] (mac) -- node[lbl,above]{SSH (TCP/22)\\Wi-Fi} node[lbl,below]{Python の文} (pi);
+\draw[->,thick] (pi) -- node[lbl,above]{I\textsuperscript{2}C バス1} node[lbl,below]{レジスタ書き込み} (brd);
+\draw[->,thick] (brd) -- node[lbl,above]{シリアルバス} node[lbl,below]{位置・時間} (srv);
+\draw[<-,thick,dashed] (mac.south) |- ++(0,-6mm) -| node[lbl,pos=0.25,below]{\texttt{scp} で JPEG／stdout で角度} (pi.south west);
+\draw[->,thick] (cam) -- node[lbl,right]{V4L2 / OpenCV} (pi);
+\end{tikzpicture}}
+\end{center}
+
+\section{第1層　Mac → Linux（Pi 5）: SSH で Python を送る}
+
+Mac 側で実行していたのは，次の形の 1 コマンドである。
+
+\begin{lstlisting}[language=bash]
+ssh -o BatchMode=yes pi@192.168.3.18 'cd ~ && python3 -c "
+from arm import *
+move([96,90,15,0,90,30], 800)      # 6 軸の目標角と所要時間 [ms]
+print(angles())                    # 各軸の現在角を読み戻す
+shot(\"/tmp/c96.jpg\")"'           # カメラで 1 枚撮る
+scp pi@192.168.3.18:/tmp/c96.jpg .  # 写真を Mac へ持ち帰る
+\end{lstlisting}
+
+\begin{itemize}
+  \item \textbf{経路}: Mac → 家庭内 Wi-Fi（TCP/22）→ Pi 5 の \texttt{sshd}。Mac の公開鍵を Pi に登録済みなので，パスワードなしで通る。
+  \item \textbf{内容}: Pi 上の Python を起動し，Pi に置いた \texttt{/home/pi/arm.py}（Yahboom 純正 \texttt{Arm\_Lib} の薄い包み＋順/逆運動学）を呼ぶ \textbf{Python の文}を文字列として渡す。
+  \item \textbf{返答}: 標準出力（角度の読み戻し）と，\texttt{scp} で持ち帰る写真（JPEG）。
+\end{itemize}
+
+つまり Mac から送っているのは「サーボ角の列」そのものではなく，\textbf{Pi 上で実行させるプログラム}である。
+\texttt{arm.py} の主な関数を表 \ref{tab:armpy} に示す。
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}ll@{}}
+\toprule
+関数 & 働き \\
+\midrule
+\texttt{move(pose, ms)}     & 6 軸を同時に \texttt{pose}=[s1..s6] へ \texttt{ms} ミリ秒で動かし，到達まで待つ \\
+\texttt{move1(id, deg, ms)} & 1 軸だけ動かす \\
+\texttt{angles()}           & 6 軸の現在角を読む（失敗時は 3 回まで再試行） \\
+\texttt{shot(path)}         & \texttt{/dev/video0} から 640×480 を 1 枚撮って保存 \\
+\texttt{ik(x, z, tilt)}     & 把持点（前方 $x$ m，高さ $z$ m，手先傾き tilt$^\circ$）→ (s2,s3,s4) \\
+\texttt{fk(s2, s3, s4)}     & サーボ角 → サーボ5中心と把持点の (x,z) \\
+\bottomrule
+\end{tabular}
+\caption{\texttt{arm.py} の関数}\label{tab:armpy}
+\end{table}
+
+\section{第2層　Linux（Pi 5） → アーム: I\textsuperscript{2}C でドライバ基板に書く}
+
+6 個のサーボは Pi に直接つながっていない。Pi は \textbf{I\textsuperscript{2}C バス 1 のアドレス \reg{0x15} にある Yahboom のドライバ基板（マイコン）}と会話し，
+基板が各サーボと\textbf{シリアルバス}で話す。純正ライブラリ \texttt{Arm\_Lib.py} が送っている電文は表 \ref{tab:i2c} のとおりである
+（Python の \texttt{smbus} で \texttt{write\_i2c\_block\_data} / \texttt{write\_byte\_data} / \texttt{read\_word\_data} を呼ぶ）。
+
+\begin{table}[h]
+\centering\footnotesize
+\begin{tabular}{@{}lll@{}}
+\toprule
+目的 & レジスタ & データ \\
+\midrule
+サーボ 1 個を動かす & \reg{0x10+id} & \texttt{[pos\_H, pos\_L, time\_H, time\_L]} \\
+6 個を同時に動かす & \reg{0x1E} → \reg{0x1D} & 先に \texttt{[time\_H,time\_L]}，次に \texttt{[pos\_H,pos\_L]}×6（12 バイト） \\
+任意 ID（1--250）を動かす & \reg{0x19} & \texttt{[id, pos\_H, pos\_L, time\_H, time\_L]} \\
+角度を読む & \reg{0x30+id} & 0 を書いた後 2 バイト読む（上下バイト入替） \\
+トルク ON/OFF & \reg{0x1A} & 1 / 0（0 で手で動かせる） \\
+ブザー & \reg{0x06} & 鳴らす長さ（0.1 秒単位, 0xFF は連続） \\
+RGB LED & \reg{0x02} & \texttt{[R, G, B]} \\
+基板リセット & \reg{0x05} & 1 \\
+\bottomrule
+\end{tabular}
+\caption{Pi が I\textsuperscript{2}C（アドレス 0x15）に書く電文}\label{tab:i2c}
+\end{table}
+
+\subsection*{角度から位置値への変換}
+\begin{align*}
+\text{サーボ 1,2,3,4,6（0--180$^\circ$）}:&\quad pos = 900 + \frac{3100-900}{180}\,\theta \\
+\text{サーボ 5（0--270$^\circ$）}:&\quad pos = 380 + \frac{3700-380}{270}\,\theta
+\end{align*}
+ただし\textbf{サーボ 2, 3, 4 は $\theta \to 180-\theta$ に反転}してから変換する（機構の向きが逆）。\texttt{time} は目標角に到達するまでのミリ秒。
+
+\subsection*{例：全軸 90$^\circ$ へ 2 秒で}
+$\theta=90 \Rightarrow pos=2000=\reg{0x07D0}$，$time=2000=\reg{0x07D0}$ なので
+\begin{lstlisting}
+write_i2c_block_data(0x15, 0x1E, [0x07, 0xD0])
+write_i2c_block_data(0x15, 0x1D, [0x07,0xD0, 0x07,0xD0, 0x07,0xD0,
+                                  0x07,0xD0, 0x07,0xD0, 0x07,0xD0])
+\end{lstlisting}
+（サーボ 5 は 90$^\circ$ が $pos=1486$ になるので実際は \texttt{[0x05,0xCE]}。）
+
+\section{第3層　ドライバ基板が受け付ける命令の全体像}
+
+\texttt{Arm\_Lib} に現れる範囲で，基板は次の種類の命令を受け付ける。
+
+\begin{description}
+  \item[位置指令] サーボ 1 個／6 個同時／任意 ID の「目標角＋所要時間」。\textbf{速度・トルク値の指定はなく，経路も指定できない}（各サーボが独立に目標へ向かう）。
+  \item[読み出し] 各サーボの現在角（\reg{0x30+id}），サーボの ping（\reg{0x38}，正常なら 0xDA），ハード版数（\reg{0x01}）。
+  \item[設定] トルク ON/OFF（\reg{0x1A}），サーボ ID の書き換え（\reg{0x18}），中位オフセットの記録（\reg{0x1C}／状態 \reg{0x1B}）。
+  \item[動作記録（学習モード）] ボタンモード（\reg{0x03}），現在姿勢を 1 コマ記録（\reg{0x24}），再生モード（\reg{0x20}: 0 停止／1 一回／2 ループ），記録数（\reg{0x22}），消去（\reg{0x23}）。手で動かして覚えさせる用途。
+  \item[周辺] ブザー（\reg{0x06}），RGB LED（\reg{0x02}），製品色（\reg{0x04}），PWM サーボ別ポート（\reg{0x50+id}）。
+\end{description}
+
+\textbf{つまりアームが理解するのは「サーボ番号・目標角・時間」だけ}であり，「掴め」「$x=15$ cm へ」といった高水準の命令は存在しない。
+逆運動学・カメラ処理・把持の成否判定はすべて Pi（またはその上流の Mac）側で行う。
+
+\section{今回の把持が成功しなかった理由（記録）}
+\begin{itemize}
+  \item カメラは手首リンク上面にあり，\textbf{指はいっさい映らない}。また画像は上下逆に見えた（棚の物が逆さに映り，ベースを左へ回すと像が左へ動く）が，取り付けの向きは実物で未確認。「画像中央に立方体」は「指の間に立方体」を意味しない。
+  \item サーボ 6（グリッパ）の読み戻しは信用できず（閉じた直後に 4 と返ることがある），把持の成否をセンサで判定できない。
+  \item 目視では指は立方体の\textbf{手前（アーム側）}に降りていた。基板側の問題ではなく，指先位置を観測できないまま角度を推定していたことが原因。
+\end{itemize}
+
+
+\section{Xinu 版：Linux を外して Pi 5 の Xinu が直接動かす}\label{sec:xinu}
+
+同日，DOFBOT の Pi 5 から Linux の SD を抜き，xinu-rpi5（USB メモリ \texttt{XINU5}，build \texttt{Sep 14 2026 08:37:52}，commit \texttt{9a150bd}）で起動した。
+第 2 層と第 3 層の電文は表 \ref{tab:i2c} のままで，変わったのは「誰が I\textsuperscript{2}C に書くか」である。
+
+\begin{center}
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+  node distance=9mm and 6mm,
+  box/.style={draw,rounded corners=2pt,minimum height=11mm,minimum width=30mm,align=center,font=\small},
+  lbl/.style={font=\scriptsize,align=center},
+  >={Stealth[length=2.5mm]}]
+\node[box,fill=blue!6]  (mac) {Mac\\\texttt{curl}};
+\node[box,fill=green!8,right=18mm of mac] (pi) {Raspberry Pi 5\\\textbf{Xinu}（bare-metal）\\\texttt{tcp\_server.c} → \texttt{arm.c} → \texttt{rp1i2c.c}};
+\node[box,fill=orange!10,right=18mm of pi] (brd) {Yahboom ドライバ基板\\（マイコン, I\textsuperscript{2}C 0x15）};
+\node[box,fill=red!6,right=18mm of brd] (srv) {バスサーボ ×6\\ID 1--6};
+\draw[->,thick] (mac) -- node[lbl,above]{HTTP GET (TCP/80)\\有線 LAN} node[lbl,below]{\texttt{/arm/pose/90/90/90/90/90/30/3000}} (pi);
+\draw[->,thick] (pi) -- node[lbl,above]{RP1 i2c1 (GPIO2/3)} node[lbl,below]{レジスタ書き込み} (brd);
+\draw[->,thick] (brd) -- node[lbl,above]{シリアルバス} node[lbl,below]{位置・時間} (srv);
+\draw[<-,thick,dashed] (mac.south) |- ++(0,-6mm) -| node[lbl,pos=0.25,below]{応答本文 \texttt{ok pose ...}／\texttt{angles 90 91 90 90 90 30}} (pi.south west);
+\end{tikzpicture}}
+\end{center}
+
+\subsection*{第1層　Mac → Xinu: URL 一行}
+Mac から送るのはプログラムではなく，命令をそのまま並べた URL である（\texttt{+} や \texttt{,} も区切りとして受け付ける）。
+\begin{lstlisting}[language=bash,basicstyle=\ttfamily\footnotesize]
+B=http://192.168.3.101
+curl $B/arm/stat                          # I2C の状態
+curl $B/arm/ver                           # 基板の版
+curl $B/arm/ping/3                        # サーボ 3 の生存
+curl $B/arm/rgb/0/255/0                   # LED 緑
+curl $B/arm/buzz/3                        # ブザー 0.3 秒
+curl $B/arm/pose/90/90/90/90/90/30/3000   # 6 軸を 3 秒で
+curl $B/arm/set/1/150/1500                # 1 軸だけ
+curl $B/arm/read                          # 現在角
+\end{lstlisting}
+シリアル端末からは同じ命令を \texttt{arm pose 90 90 90 90 90 30 3000} のように打てる。HTTP とシェルは同じ \texttt{arm\_command()} を呼ぶ。
+
+\subsection*{第2層　Xinu → 基板: C 関数が I\textsuperscript{2}C レジスタに書く}
+{\sloppy Pi 5 のヘッダ GPIO は SoC ではなく RP1（PCIe 越し）にある。\texttt{rp1i2c.c} は RP1 の i2c1（\texttt{0x1F00074000}，DesignWare 互換）を
+GPIO2/3 の FUNCSEL=3 で有効にし，100 kHz のマスタとして全部ポーリングで動かす。割り込みは使わず，すべての待ちに \texttt{cntpct} の期限を置いた。
+起動時に \texttt{IC\_COMP\_TYPE} を読み，DesignWare の値 \texttt{0x44570140} でなければ自分を無効化する（RP1 は無クロックの周辺に \texttt{0xDEADDEAD} を返す）。
+
+\texttt{arm.c} は \texttt{Arm\_Lib.py} と同じ電文を組み立てる。例えば「全軸 90°，グリッパ 30，3 秒」の \texttt{pose} 命令は，次の 2 回の書き込みになる。
+\begin{lstlisting}[basicstyle=\ttfamily\footnotesize]
+/* 時間 3000 ms = 0x0BB8 */
+rp1i2c_write(0x15, {0x1E, 0x0B, 0xB8}, 3);
+/* ID1..4 = 2000 (0x07D0), ID5 = 1486 (0x05CE), ID6 = 1100 (0x044C) */
+rp1i2c_write(0x15, {0x1D, 0x07,0xD0, 0x07,0xD0, 0x07,0xD0,
+                          0x07,0xD0, 0x05,0xCE, 0x04,0x4C}, 13);
+\end{lstlisting}
+角度の読み出しは「\texttt{0x30+id} に 0 を書く → 3 ms 待つ → repeated START で 2 バイト読む」で，Linux 版と同じ手順を DesignWare の
+\texttt{IC\_DATA\_CMD}（\texttt{CMD\_RESTART}／\texttt{CMD\_STOP} ビット）で組んでいる。\par}
+
+\subsection*{実測（2026-09-14）}
+\begin{center}\footnotesize
+\begin{tabular}{@{}p{0.47\textwidth}p{0.5\textwidth}@{}}
+\toprule
+確認 & 結果 \\
+\midrule
+\texttt{/arm/stat} & \texttt{i2c1 up}（\texttt{IC\_COMP\_TYPE} 一致，FIFO 空・待機） \\
+\texttt{/arm/ver} & \texttt{board version 0.21} \\
+\texttt{/arm/ping/1}〜\texttt{6} & すべて \texttt{218 (0xDA, ok)} \\
+\texttt{/arm/rgb}，\texttt{/arm/buzz} & LED 点灯，ブザー鳴動 \\
+起動直後の \texttt{/arm/read} & \texttt{angles 90 150 ? 0 90 30}（電源断で肩・手首が垂れた姿勢） \\
+\texttt{/arm/pose/90/90/90/90/90/30/3000} → \texttt{/arm/read} & \texttt{angles 90 91 90 90 90 30} \\
+\texttt{/arm/set/1/30}, \texttt{150}, \texttt{90} → \texttt{/arm/read} & \texttt{30 / 149 / 90} \\
+I\textsuperscript{2}C 統計 & 転送 106 回，失敗 0，タイムアウト 0 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection*{Linux 版との違い}
+\begin{itemize}
+  \item \textbf{中間層が消えた}: Linux＋Python＋\texttt{smbus} が，Xinu の C 関数 2 つ（\texttt{arm\_command} → \texttt{rp1i2c\_write}）になった。命令から I\textsuperscript{2}C の書き込みまでの経路が全部自分のコードで，待ち時間の上限も自分で決めている。
+  \item \textbf{Mac が送るものが変わった}: Pi で実行させる Python コード → 命令そのものの URL。他の Xinu 板や AIPL の \texttt{remote} からも同じ口を叩ける。
+  \item \textbf{失ったもの}: USB カメラ（Xinu に UVC ドライバがない），Yahboom の ROS2／AprilTag 認識。観測は当面 Mac か別の Linux 機が担う。
+  \item \textbf{注意}: 起動後 30 秒ほどは機内ブラウザが airilab.app を取りに行くため HTTP が待たされる（故障ではない）。Linux の SD を挿したままだと SD から Linux が起動する。
+\end{itemize}
+
+
+\section{AIPL 版：計画は Mac の正典、腕は板の上のアクター}\label{sec:aipl}
+
+同日午後，命令の発行元を \texttt{curl} から AIPL（OCaml 正典，\texttt{\textasciitilde/aios/abclcp}）に置き換えた。
+板の上で走るアクター \texttt{Arm} が腕に触る唯一の存在（効果 \texttt{io}）で，Mac の計画側は網にしか触らない（効果 \texttt{net}）。
+
+\begin{center}
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+  node distance=9mm and 6mm,
+  box/.style={draw,rounded corners=2pt,minimum height=11mm,minimum width=30mm,align=center,font=\small},
+  lbl/.style={font=\scriptsize,align=center},
+  >={Stealth[length=2.5mm]}]
+\node[box,fill=blue!6]  (mac) {Mac\\AIPL 正典 (OCaml)\\\texttt{Planner} / \texttt{Dancer}};
+\node[box,fill=green!8,right=20mm of mac] (pi) {Raspberry Pi 5\\Xinu\\アクター \texttt{Arm}（\texttt{arm\_cmd}）};
+\node[box,fill=orange!10,right=16mm of pi] (brd) {ドライバ基板\\I\textsuperscript{2}C 0x15};
+\node[box,fill=gray!10,below=of mac] (sim) {Mac\\Xinu シミュレータ (aice-avm)\\模型の \texttt{dofbot} アクター};
+\draw[->,thick] (mac) -- node[lbl,above]{\texttt{remote\_call} UDP/9010\\\texttt{Q id dofbot cmd pose 90 …}} node[lbl,below]{\texttt{R id ok pose …}} (pi);
+\draw[->,thick] (pi) -- node[lbl,above]{I\textsuperscript{2}C} (brd);
+\draw[->,thick] (mac) -- node[lbl,right]{同じ電文を 127.0.0.1:9010 へ} (sim);
+\end{tikzpicture}}
+\end{center}
+
+\subsection*{正典に足した組込み}
+\begin{itemize}
+  \item \texttt{remote\_call(host:port, actor, method, arg, ms): string}（効果 \texttt{net}）—— 住所を一つ書いて同期に呼び，答を一つ受ける。
+        電文は板の \texttt{aipl\_remote.c} と同じ ASCII 一行（\texttt{Q <id> <actor> <method> <arg…>} / \texttt{R <id> <値>}），200 ms ごとに再送，期限切れは \texttt{"err"}。
+        要求番号は起動時刻からずらす（毎回 20000 から始めると，相手が「同じ要求の再送」と見て\textbf{前回の答え}を返す。実測）。
+  \item \texttt{arm\_cmd(s): string}（効果 \texttt{io}）—— 正典では板の \texttt{/arm?cmd=} に HTTP で運ぶ。Xinu の機内 AIPL には同名の組込みがあり，\texttt{system/arm.c} を直接呼ぶ。
+  \item 実行位置の通知 —— 文を一つ実行するたびに UDP/9011 へ \texttt{PC 行 列 アクター ファイル} を撒く。シミュレータの「AIPL program」窓がその行を反転する。
+\end{itemize}
+
+\subsection*{板の上のアクター（起動時に自動で載る）}
+\begin{lstlisting}[basicstyle=\ttfamily\footnotesize]
+class Arm {
+  var count = 0;
+  method cmd(s: string) : string !{io, mut} { count = count + 1; reply(arm_cmd(s)); }
+  method served() : int !{} { reply(count); }
+}
+var arm = new Arm();
+web_expose("/dofbot", "arm");
+\end{lstlisting}
+再起動でアクターは消える（RAM 上）ので，起動 45 秒後に板自身が同じ原稿を \texttt{abcl2c} → 機内 cc で載せ直す。
+
+\subsection*{振り付け（一手＝一行）}
+\begin{lstlisting}[basicstyle=\ttfamily\footnotesize]
+class Planner {
+  method dance(d: Dancer, b: string) : int !{net, time, log} {
+    var r = 0;
+    r = now d.go(b, "pose 90 90 90 90 90 30 1500") timeout 5000 else 0; wait(1750);   // 直立
+    r = now d.go(b, "pose 90 164 18 0 90 30 1500") timeout 5000 else 0; wait(1750);   // P_LOOK_AT
+    ...                                                                                // 全 22 手
+    reply(22);
+  }
+}
+class Main {
+  method run(p: Planner, d: Dancer) : unit !{net, time, log} {
+    var n = now p.dance(d, "127.0.0.1:9010") timeout 120000 else 0;      // 1. 模型
+    n = now p.dance(d, "192.168.3.101:9010") timeout 120000 else 0;      // 2. 実機
+  }
+}
+\end{lstlisting}
+「命令を送る文」と「所要時間だけ待つ文」を\textbf{同じ行}に置く。実行位置の通知は「いま実行中の文」の行を指すので，
+待っているあいだも腕が動いている手の行が反転し続ける（別行にすると \texttt{wait} の行だけが反転する）。
+同じプログラムが住所だけ変えて模型にも実機にも向く。実測：模型 22 手 → 実機 22 手，44 応答すべて \texttt{ok}。
+
+\section{Xinu シミュレータの窓}\label{sec:desktop}
+aice-avm のデスクトップ（\texttt{http://localhost:8080/}）に二つの窓を足した。
+\begin{itemize}
+  \item \textbf{DOFBOT arm}：URDF の寸法で描く 3D 模型（サーボ角からの順運動学，ドラッグで回転），6 軸スライダ，
+        模型／実機の切替，読み戻し・同期，右側にカメラ映像。模型は UDP/9010 の \texttt{dofbot} アクターとしても答えるので，
+        AIPL は住所を \texttt{127.0.0.1:9010} にするだけで模型が動く。実機への命令は同一生成元の \texttt{/api/arm} が板の \texttt{/arm} へ中継する。
+  \item \textbf{AIPL program}：走っている \texttt{.aipl} を行番号つきで表示し，実行中の文の行を反転（白地）。
+\end{itemize}
+
+\section{Xinu の USB カメラドライバ（UVC，等時転送）}\label{sec:uvc}
+カメラ（Microdia \texttt{0c45:6340}，USB 2.0 高速）を Linux から Xinu の Pi 5 に付け替え，Xinu 自身で映像を受けた。
+記述子を読むと\textbf{YUY2（非圧縮）のみ，MJPEG なし}，VideoStreaming は\textbf{等時（isochronous）エンドポイント 0x81 のみ}で，
+代替設定 1〜6 が 1 µ フレームあたり 128／256／800／800×2／800×3／1024×3 バイト。もっとも手間のかかる組み合わせである。
+
+\subsection*{流れ}
+\begin{enumerate}
+  \item 下見（\texttt{/usb/cam-probe}）：構成記述子（671 バイト）を読み，VC/VS インタフェース・形式・フレーム・代替設定を表にする。
+  \item \texttt{SET\_CONFIGURATION(1)} → VS \texttt{Probe}（\texttt{SET\_CUR}/\texttt{GET\_CUR}，26 バイト：形式 1，フレーム 3＝320×240，間隔 1,000,000×100 ns＝10 fps）→ \texttt{Commit}。
+        装置が返す \texttt{dwMaxPayloadTransferSize}（1600）以上の容量を持つ最小の代替設定（alt 4，800×2）を \texttt{SET\_INTERFACE} で選ぶ。
+  \item xHCI に\textbf{等時 IN エンドポイント}（DCI 3，Interval 0＝125 µs，MaxBurst 1，Max ESIT payload 1600）を Configure Endpoint で作る。
+  \item TRB 環（512 個，各 3 KB）を満たして doorbell。各 TRB は IOC＋ISP＋SIA（次に空く µ フレームで送る）。
+  \item 100 Hz の pump が転送イベントを拾い，UVC ペイロードヘッダ（[0]=ヘッダ長，[1]=FID／EOF／ERR）でフレームを組み立て，
+        EOF で二面バッファの「最新」を差し替える。消費した TRB は同じ位置に積み直す。イベント環は 64 → 1024（10 ms で最大 80 個来る）。
+  \item 配信：\texttt{/cam?w=160\&off=N} が YUY2 → RGB565 に縮めて 12 KB ずつ返す（CORS つき，\texttt{/fb} と同じ形）。シミュレータの窓が canvas に描く。
+\end{enumerate}
+
+\subsection*{実測}
+\begin{center}\footnotesize
+\begin{tabular}{@{}p{0.42\textwidth}p{0.55\textwidth}@{}}
+\toprule
+確認 & 結果 \\
+\midrule
+\texttt{/cam/start?frame=3\&fps=10} & \texttt{setcfg=1 probe\_cc=1 getcur=26 commit\_cc=1}，alt 4 pkt 1600，\texttt{cfgep\_cc=1 → STREAMING} \\
+\texttt{/cam/stat}（3 秒後） & frames 29 → 76，完全フレーム 153,600 バイト，overrun 0 \\
+起動時自動開始後 & frames 393，errs 0 \\
+画像 & Mac で復元し，天井（火災報知器・照明の飾り）が映った。レンズを手で覆うと輝度 173 → 96 → 171 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection*{一度目に失敗した原因}
+EP0（制御転送）の転送環 \texttt{g\_ep0\_ring} が\textbf{全装置で共有}されていた。下見が次のコントローラ（起動用 USB メモリ）まで当たった時点で
+カメラの EP0 の状態が壊れ，以後の制御転送がすべて時間切れ（\texttt{setcfg=0 … cfgep\_cc=19}）。
+配信開始のたびにカメラをアドレスし直して環を新しくし，下見は最初の映像装置で打ち切るようにした。
+
+\section{その他の実装（同日）}
+\begin{itemize}
+  \item \textbf{ファン}（\texttt{/fan}）：Pi 5 のファンは RP1 の PWM1 チャネル 3（GPIO45）。Linux の \texttt{cooling\_fan} と同じ周期 41,566 ns・反転極性で，
+        clk\_pwm1 を xosc 50 MHz に設定して回した。10 秒ごとにメールボックス（\texttt{GET\_TEMPERATURE}）で SoC 温度を読み，
+        Linux と同じ段（50／60／67.5／75 ℃ → 75／125／175／250）で自動調節する。Xinu では firmware が起動時に決めた状態のまま止まっていた。
+  \item \textbf{再起動への備え}：起動 45 秒後に \texttt{dofbot} アクターとカメラ配信を自動で始める。USB の再結線処理は配信中のカメラのポートを触らない。
+  \item \textbf{腕基板の固まり}：書きは ACK されるのに読みが全部時間切れになる状態を実測（22 手中 1 手が I\textsuperscript{2}C 時間切れで抜けたのも同じ兆候）。
+        時間切れは 5 ms 後に一度だけやり直し，\texttt{read} が 3 回続けて全軸読めなければ基板をリセット（0x05）する。手動は \texttt{/arm/reset}。
+\end{itemize}
+
+\section{今後の拡張}
+腕・カメラ・ファンがすべて Xinu の中で動き，AIPL から一つの口で扱えるようになった。次は，カメラ映像を AIPL の組込み（\texttt{cam\_frame()}，タグ検出）として計画側に渡し，HDMI 画面にカメラ窓を出し，レポート（9 月 7 日）の設計どおり 6＋1 アクタに分ける。把持そのものには指の位置を観測する手段（腕の外から見るカメラか接触センサ）が要る。
+基板が受け付けるのが角度と時間だけである以上，どの経路でも最終的に流れる電文は表 \ref{tab:i2c} のものになる。
+
+\vfill
+{\small\raggedright 参考: \texttt{/home/pi/colcon\_ws/src/Arm\_Lib/Arm\_Lib/Arm\_Lib.py}（V1.0.1），\texttt{/home/pi/arm.py}（写し \texttt{\textasciitilde/dofbot\_pi5/arm.py}），
+URDF: j3soon/OmniIsaacGymEnvs-DofbotReacher \texttt{thirdparty/dofbot\_info/urdf/dofbot.urdf}，Xinu 版: xinu-rpi5 \texttt{device/i2c/rp1i2c.c}，\texttt{system/arm.c}（9a150bd），UVC: \texttt{device/usb/rp1usb.c}（cddba90），ファン: \texttt{device/genet/rp1fan.c}（2760a07）；正典: abclcp \texttt{src/eval\_thread.ml}（224e9ea）；シミュレータ: aice-avm \texttt{server.ml}，\texttt{www/js/xinu.js}（c1aac3a）；AIPL: \texttt{\textasciitilde/dofbot\_pi5/aipl/complex.aipl}。\par}
+\end{document}

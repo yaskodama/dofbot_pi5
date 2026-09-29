@@ -1,0 +1,16 @@
+class P {
+  method go(b: string) : int !{net, log} {
+    print("read -> " ++ remote_call(b, "dofbot", "cmd", "read", 3000));
+    print("stat -> " ++ remote_call(b, "dofbot", "cmd", "stat", 3000));
+    reply(0);
+  }
+}
+class Main {
+  method run(p: P) : unit !{net, time, log} {
+    var r = now p.go("192.168.3.101:9010") timeout 10000 else 0;
+    print("== probe done");
+  }
+}
+var p = new P();
+var m = new Main();
+send m.run(p);

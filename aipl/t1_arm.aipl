@@ -1,0 +1,11 @@
+// t1 — 正典（Mac）から DOFBOT の Xinu 板へ。arm_cmd は板の /arm 口に運ばれる（io）。
+class Tester {
+  method run() : unit !{io, log} {
+    print("stat: " ++ arm_cmd("stat"));
+    print("read: " ++ arm_cmd("read"));
+    print("rgb:  " ++ arm_cmd("rgb 255 0 0"));
+    print("pose: " ++ arm_cmd("pose 90 90 90 90 90 30 1500"));
+  }
+}
+var t = new Tester();
+send t.run();

@@ -1,0 +1,40 @@
+Compiler stub: compiler.ml
+[info] -f: /Users/kodamay/dofbot_pi5/aipl/r_sim.repl
+[script] /Users/kodamay/dofbot_pi5/aipl/r_sim.repl
+[script] load /Users/kodamay/dofbot_pi5/aipl/sim_only.aipl
+[Loaded] /Users/kodamay/dofbot_pi5/aipl/sim_only.aipl
+[script] compile
+[Defined class Dancer]
+[Registered types for class Dancer: go/2]
+[Defined class Planner]
+[Registered types for class Planner: dance/2]
+[Defined class Main]
+[Registered types for class Main: run/2]
+[Compiled]
+[Script execution completed]
+== 1. simulator (Mac)
+  pose 90 90 90 90 90 30 1500  -> ok pose 90 90 90 90 90 30 ms=1500
+  pose 90 164 18 0 90 30 1500  -> ok pose 90 164 18 0 90 30 ms=1500
+ABCL/c+> 
+[REPL thread error] Thread.Exit
+  set 1 150 900  -> ok set 1 -> 150 ms=900
+  set 1 30 1400  -> ok set 1 -> 30 ms=1400
+  set 1 90 900  -> ok set 1 -> 90 ms=900
+  pose 90 106 0 0 90 30 1500  -> ok pose 90 106 0 0 90 30 ms=1500
+  set 5 30 700  -> ok set 5 -> 30 ms=700
+  set 5 150 1200  -> ok set 5 -> 150 ms=1200
+  set 5 90 700  -> ok set 5 -> 90 ms=700
+  pose 90 80 50 50 90 30 1500  -> ok pose 90 80 50 50 90 30 ms=1500
+  pose 90 41 55 15 90 30 1500  -> ok pose 90 41 55 15 90 30 ms=1500
+  set 6 135 600  -> ok set 6 -> 135 ms=600
+  pose 90 80 50 50 90 135 1200  -> ok pose 90 80 50 50 90 135 ms=1200
+  pose 180 80 50 50 90 135 1500  -> ok pose 180 80 50 50 90 135 ms=1500
+  pose 180 35 65 0 90 135 1500  -> ok pose 180 35 65 0 90 135 ms=1500
+  set 6 30 600  -> ok set 6 -> 30 ms=600
+  pose 180 80 50 50 90 30 1200  -> ok pose 180 80 50 50 90 30 ms=1200
+  pose 0 80 50 50 90 30 2000  -> ok pose 0 80 50 50 90 30 ms=2000
+  pose 0 43 48 6 90 30 1200  -> ok pose 0 43 48 6 90 30 ms=1200
+  pose 90 90 0 180 90 180 1800  -> ok pose 90 90 0 180 90 180 ms=1800
+  pose 90 131 52 0 90 180 1500  -> ok pose 90 131 52 0 90 180 ms=1500
+  pose 90 90 90 90 90 30 1800  -> ok pose 90 90 90 90 90 30 ms=1800
+== done (22 moves)

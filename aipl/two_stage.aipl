@@ -1,0 +1,48 @@
+// two_stage.aipl — 同じ振り付けを、まず Mac の模型（127.0.0.1:9010）で、次に実機
+// （DOFBOT の Xinu 板 192.168.3.101:9010）で。どちらも "dofbot" アクターの cmd(s)。
+// 計画側は腕に触らない（io を持たない）。net と time だけ。
+class Choreo {
+  method step(b: string, s: string, ms: int) : int !{net, time, log} {
+    print("  " ++ s ++ "  -> " ++ remote_call(b, "dofbot", "cmd", s, 3000));
+    wait(ms + 300);
+    reply(ms);
+  }
+}
+class Dancer {
+  var moves = array_empty();
+  var times = array_empty();
+  method add(s: string, ms: int) : unit !{mem, mut} {
+    moves = array_push(moves, s);
+    times = array_push(times, ms);
+  }
+  method dance(c: Choreo, b: string) : int !{net, time, log} {
+    var i = 0;
+    while i < array_len(moves) do {
+      var r = now c.step(b, array_get(moves, i), array_get(times, i)) timeout 10000 else 0;
+      i = i + 1;
+    }
+    reply(i);
+  }
+}
+class Planner {
+  method run(d: Dancer, c: Choreo) : unit !{net, time, log} {
+    print("== 1. simulator (Mac)");
+    var n = now d.dance(c, "127.0.0.1:9010") timeout 60000 else 0;
+    print("== 2. real arm (Xinu board)");
+    n = now d.dance(c, "192.168.3.101:9010") timeout 60000 else 0;
+    print("== done (" ++ n ++ " moves)");
+  }
+}
+var c = new Choreo();
+var d = new Dancer();
+var p = new Planner();
+send d.add("pose 90 90 90 90 90 30 1500", 1500);
+send d.add("set 1 140 1200", 1200);
+send d.add("pose 140 60 60 40 90 30 1500", 1500);
+send d.add("set 6 135 600", 600);
+send d.add("pose 140 90 90 90 90 135 1500", 1500);
+send d.add("set 1 40 1500", 1500);
+send d.add("pose 40 60 60 40 90 135 1500", 1500);
+send d.add("set 6 30 600", 600);
+send d.add("pose 90 90 90 90 90 30 1500", 1500);
+send p.run(d, c);

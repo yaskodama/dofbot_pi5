@@ -1,0 +1,50 @@
+// complex.aipl — 複雑な振り付け（Yahboom 純正の姿勢を織り交ぜた 22 手）。
+// まず Mac の模型（127.0.0.1:9010）、次に実機（192.168.3.101:9010）。
+// 一手＝一行（命令を送り、その所要時間だけ待つ）。反転している行が、いま腕が動いている手。
+class Dancer {
+  method go(b: string, s: string) : int !{net, log} {
+    print("  " ++ s ++ "  -> " ++ remote_call(b, "dofbot", "cmd", s, 3000));
+    reply(0);
+  }
+}
+class Planner {
+  method dance(d: Dancer, b: string) : int !{net, time, log} {
+    var r = 0;
+    r = now d.go(b, "pose 90 90 90 90 90 30 1500") timeout 5000 else 0; wait(1750);   // 直立
+    r = now d.go(b, "pose 90 164 18 0 90 30 1500") timeout 5000 else 0; wait(1750);   // P_LOOK_AT（前を見る）
+    r = now d.go(b, "set 1 150 900") timeout 5000 else 0; wait(1150);   // 右を見る
+    r = now d.go(b, "set 1 30 1400") timeout 5000 else 0; wait(1650);   // 左を見る
+    r = now d.go(b, "set 1 90 900") timeout 5000 else 0; wait(1150);
+    r = now d.go(b, "pose 90 106 0 0 90 30 1500") timeout 5000 else 0; wait(1750);   // P_LOOK_MAP（下を見る）
+    r = now d.go(b, "set 5 30 700") timeout 5000 else 0; wait(950);    // 手首をひねる
+    r = now d.go(b, "set 5 150 1200") timeout 5000 else 0; wait(1450);
+    r = now d.go(b, "set 5 90 700") timeout 5000 else 0; wait(950);
+    r = now d.go(b, "pose 90 80 50 50 90 30 1500") timeout 5000 else 0; wait(1750);   // P_TOP（構え）
+    r = now d.go(b, "pose 90 41 55 15 90 30 1500") timeout 5000 else 0; wait(1750);   // P_CENTER（前へ伸ばす）
+    r = now d.go(b, "set 6 135 600") timeout 5000 else 0; wait(850);    // つかむ
+    r = now d.go(b, "pose 90 80 50 50 90 135 1200") timeout 5000 else 0; wait(1450);   // 持ち上げる
+    r = now d.go(b, "pose 180 80 50 50 90 135 1500") timeout 5000 else 0; wait(1750);   // 180° 回す
+    r = now d.go(b, "pose 180 35 65 0 90 135 1500") timeout 5000 else 0; wait(1750);   // P_HEAP_1（置く）
+    r = now d.go(b, "set 6 30 600") timeout 5000 else 0; wait(850);    // 放す
+    r = now d.go(b, "pose 180 80 50 50 90 30 1200") timeout 5000 else 0; wait(1450);
+    r = now d.go(b, "pose 0 80 50 50 90 30 2000") timeout 5000 else 0; wait(2250);   // 反対側へ大きく振る
+    r = now d.go(b, "pose 0 43 48 6 90 30 1200") timeout 5000 else 0; wait(1450);   // P_NUM_4
+    r = now d.go(b, "pose 90 90 0 180 90 180 1800") timeout 5000 else 0; wait(2050);   // P_ACTION_2（手首を反らす）
+    r = now d.go(b, "pose 90 131 52 0 90 180 1500") timeout 5000 else 0; wait(1750);   // P_ACTION_3
+    r = now d.go(b, "pose 90 90 90 90 90 30 1800") timeout 5000 else 0; wait(2050);   // 直立に戻る
+    reply(22);
+  }
+}
+class Main {
+  method run(p: Planner, d: Dancer) : unit !{net, time, log} {
+    print("== 1. simulator (Mac)");
+    var n = now p.dance(d, "127.0.0.1:9010") timeout 120000 else 0;
+    // (実機は繋いでいないので模型だけ)
+
+    print("== done (" ++ n ++ " moves)");
+  }
+}
+var d = new Dancer();
+var p = new Planner();
+var m = new Main();
+send m.run(p, d);

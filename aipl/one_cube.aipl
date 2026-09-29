@@ -1,0 +1,43 @@
+// one_cube.aipl —— 立方体1個を掴んで運んで置くだけの版。
+// 同じソースを、模型（aice-avm 内蔵）と実機（Xinu 板）の両方へ向けられる。
+// 変えるのは接続先の住所だけで、作業の手順は1行も変えない。
+//
+//   模型: BACKEND = "sim"    → http://localhost:8080/api/arm/sim
+//   実機: BACKEND = "real"   → 192.168.3.101 の Arm アクター
+//
+// 姿勢はすべて実機のサーボ範囲 0..180 に収まる値だけを使う。
+class OneCube {
+  var b = "192.168.3.101:9010";
+
+  method step(s: string, ms: int) : string !{net, log} {
+    var r = remote_call(b, "dofbot", "cmd", s, 4000);
+    print("  " ++ s ++ "  -> " ++ r);
+    reply(r);
+  }
+
+  method run() : unit !{net, log} {
+    print("[1] 原点へ");
+    var a = now self.step("pose 90 90 90 90 90 30 1500", 1500) timeout 6000 else "timeout";
+    print("[2] グリッパを開く");
+    var b1 = now self.step("set 6 30 600", 600) timeout 4000 else "timeout";
+    print("[3] 立方体の上へ（接近姿勢）");
+    var c = now self.step("pose 90 41 55 15 90 30 1800", 1800) timeout 6000 else "timeout";
+    print("[4] 下降して掴む位置へ");
+    var d = now self.step("pose 90 30 60 20 90 30 1500", 1500) timeout 6000 else "timeout";
+    print("[5] 掴む");
+    var e = now self.step("set 6 130 800", 800) timeout 4000 else "timeout";
+    print("[6] 持ち上げる");
+    var f = now self.step("pose 90 60 50 30 90 130 1500", 1500) timeout 6000 else "timeout";
+    print("[7] 置き場所へ旋回");
+    var g = now self.step("pose 30 60 50 30 90 130 1800", 1800) timeout 6000 else "timeout";
+    print("[8] 下ろす");
+    var h = now self.step("pose 30 41 55 15 90 130 1500", 1500) timeout 6000 else "timeout";
+    print("[9] 放す");
+    var i = now self.step("set 6 30 800", 800) timeout 4000 else "timeout";
+    print("[10] 原点へ戻る");
+    var j = now self.step("pose 90 90 90 90 90 30 1800", 1800) timeout 6000 else "timeout";
+    print("[done] 1個の運搬を終了");
+  }
+}
+var t = new OneCube();
+send t.run();

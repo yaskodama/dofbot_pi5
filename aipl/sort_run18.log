@@ -1,0 +1,140 @@
+Compiler stub: compiler.ml
+[info] -f: /Users/kodamay/dofbot_pi5/aipl/r_sort.repl
+[script] /Users/kodamay/dofbot_pi5/aipl/r_sort.repl
+[script] load /Users/kodamay/dofbot_pi5/aipl/sort.aipl
+[Loaded] /Users/kodamay/dofbot_pi5/aipl/sort.aipl
+[script] compile
+[Defined class Dancer]
+[Registered types for class Dancer: go/2]
+[Defined class Eye]
+[Registered types for class Eye: locate/2, lower/2, held/1, get/2]
+[Defined class Planner]
+[Registered types for class Planner: sort/4]
+[Defined class Main]
+[Registered types for class Main: run/3]
+[Compiled]
+[Script execution completed]
+== 1. simulator (Mac)
+  pose 90 90 90 90 90 30 1500  -> ok pose 90 90 90 90 90 30 ms=1500
+ABCL/c+> 
+[REPL thread error] Thread.Exit
+  locate(sim, grip 30) = green
+  base = 90
+  pre = 61 43 1
+  grasp = 55 29 21
+  try 1: grasp at base 90
+  set 6 30 500  -> ok set 6 -> 30 ms=500
+  pose 90 80 50 50 90 30 1200  -> ok pose 90 80 50 50 90 30 ms=1200
+  lower(here 30) = ok 1.5
+  set 6 135 600  -> ok set 6 -> 135 ms=600
+  pose 90 61 43 1 90 135 1000  -> ok pose 90 61 43 1 90 135 ms=1000
+  pose 90 80 50 50 90 135 1200  -> ok pose 90 80 50 50 90 135 ms=1200
+  held(sim) = yes
+  try 1: the fingers stopped on the cube — it is in the hand
+  green -> right
+  pose 150 80 50 50 90 135 1500  -> ok pose 150 80 50 50 90 135 ms=1500
+  lower(150 17 135) = ok 1.5
+  set 6 30 600  -> ok set 6 -> 30 ms=600
+  pose 150 59 35 10 90 30 1000  -> ok pose 150 59 35 10 90 30 ms=1000
+  pose 90 90 90 90 90 30 1800  -> ok pose 90 90 90 90 90 30 ms=1800
+== simulator placed at base 150
+== 2. real arm (Xinu board)
+  pose 90 90 90 90 90 30 1500  -> ok pose 90 90 90 90 90 30 ms=1500
+  locate(real, grip 30) = none
+  try 1: no cube in view — look again
+  locate(real, grip 30) = none
+  try 2: no cube in view — look again
+  locate(real, grip 30) = none
+  try 3: no cube in view — look again
+  locate(real, grip 30) = none
+  try 4: no cube in view — look again
+  locate(real, grip 30) = blue
+  base = 65
+  pre = 74 25 6
+  grasp = 67 11 27
+  try 5: grasp at base 65
+  set 6 30 500  -> ok set 6 -> 30 ms=500
+  pose 65 80 50 50 90 30 1200  -> ok pose 65 80 50 50 90 30 ms=1200
+  lower(here 30) = ok 1.5
+  set 6 135 600  -> ok set 6 -> 135 ms=600
+  pose 65 74 25 6 90 135 1000  -> ok pose 65 74 25 6 90 135 ms=1000
+  pose 65 80 50 50 90 135 1200  -> ok pose 65 80 50 50 90 135 ms=1200
+  held(real) = no
+  try 5: the fingers closed on nothing — open, look again, try again
+  set 6 30 500  -> ok set 6 -> 30 ms=500
+  locate(real, grip 30) = none
+  try 6: no cube in view — look again
+  locate(real, grip 30) = none
+  try 7: no cube in view — look again
+  locate(real, grip 30) = none
+  try 8: no cube in view — look again
+  locate(real, grip 30) = none
+  try 9: no cube in view — look again
+  locate(real, grip 30) = blue
+  base = 84
+  pre = 68 33 4
+  grasp = 61 19 24
+  try 10: grasp at base 84
+  set 6 30 500  -> ok set 6 -> 30 ms=500
+  pose 84 80 50 50 90 30 1200  -> ok pose 84 80 50 50 90 30 ms=1200
+  lower(here 30) = ok 1.5
+  set 6 135 600  -> ok set 6 -> 135 ms=600
+  pose 84 68 33 4 90 135 1000  -> ok pose 84 68 33 4 90 135 ms=1000
+  pose 84 80 50 50 90 135 1200  -> ok pose 84 80 50 50 90 135 ms=1200
+  held(real) = no
+  try 10: the fingers closed on nothing — open, look again, try again
+  set 6 30 500  -> ok set 6 -> 30 ms=500
+  locate(real, grip 30) = blue
+  base = 90
+  pre = 58 45 8
+  grasp = 49 36 25
+  try 11: grasp at base 90
+  set 6 30 500  -> ok set 6 -> 30 ms=500
+  pose 90 80 50 50 90 30 1200  -> FAIL pose rc=-2 90 80 50 50 90 30 ms=1200
+  lower(here 30) = err
+  try 11: could not lower (err) — look again
+  pose 90 80 50 50 90 30 1200  -> ok pose 90 80 50 50 90 30 ms=1200
+  locate(real, grip 30) = none
+  try 12: no cube in view — look again
+  locate(real, grip 30) = none
+  try 13: no cube in view — look again
+  locate(real, grip 30) = none
+  try 14: no cube in view — look again
+  locate(real, grip 30) = none
+  try 15: no cube in view — look again
+  locate(real, grip 30) = none
+  try 16: no cube in view — look again
+  locate(real, grip 30) = none
+  try 17: no cube in view — look again
+  locate(real, grip 30) = none
+  try 18: no cube in view — look again
+  locate(real, grip 30) = none
+  try 19: no cube in view — look again
+  locate(real, grip 30) = none
+  try 20: no cube in view — look again
+  locate(real, grip 30) = none
+  try 21: no cube in view — look again
+  locate(real, grip 30) = none
+  try 22: no cube in view — look again
+  locate(real, grip 30) = none
+  try 23: no cube in view — look again
+  locate(real, grip 30) = none
+  try 24: no cube in view — look again
+  locate(real, grip 30) = none
+  try 25: no cube in view — look again
+  locate(real, grip 30) = none
+  try 26: no cube in view — look again
+  locate(real, grip 30) = none
+  try 27: no cube in view — look again
+  locate(real, grip 30) = none
+  try 28: no cube in view — look again
+  locate(real, grip 30) = none
+  try 29: no cube in view — look again
+  locate(real, grip 30) = none
+  try 30: no cube in view — look again
+  locate(real, grip 30) = none
+  gave up after 30 tries
+  set 6 30 500  -> ok set 6 -> 30 ms=500
+  pose 90 90 90 90 90 30 1500  -> ok pose 90 90 90 90 90 30 ms=1500
+== real arm placed at base 0
+== done

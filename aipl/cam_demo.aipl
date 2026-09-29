@@ -1,0 +1,11 @@
+// cam_demo.aipl — 正典（Mac）からカメラ係の Pi 5（Linux, 192.168.3.19）に頼む。
+class Viewer {
+  method watch() : unit !{net, log} {
+    var c = "192.168.3.19:9010";
+    print("mean : " ++ remote_call(c, "Camera", "mean", "0", 3000));
+    print("find : " ++ remote_call(c, "Camera", "find", "0", 3000));
+    print("shot : " ++ remote_call(c, "Camera", "shot", "0", 3000));
+  }
+}
+var v = new Viewer();
+send v.watch();

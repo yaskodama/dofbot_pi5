@@ -1,0 +1,13 @@
+// dofbot_arm.aipl — DOFBOT を載せた Xinu 板（192.168.3.101）で走る。
+// 腕に触る唯一のアクター（io）。命令の文字列をそのまま I2C の電文にする。
+//   POST /cc に載せる → remote_call("192.168.3.101:9010", "dofbot", "cmd", "...") で呼べる。
+class Arm {
+  var count = 0;
+  method cmd(s: string) : string !{io, mut} {
+    count = count + 1;
+    reply(arm_cmd(s));
+  }
+  method served() : int !{} { reply(count); }
+}
+var arm = new Arm();
+web_expose("/dofbot", "arm");

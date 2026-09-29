@@ -1,0 +1,5 @@
+__pycache__/
+*.pyc
+color_service.log
+*.bak*
+.DS_Store

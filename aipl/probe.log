@@ -1,0 +1,16 @@
+Compiler stub: compiler.ml
+[info] -f: /Users/kodamay/dofbot_pi5/aipl/r_probe.repl
+[script] /Users/kodamay/dofbot_pi5/aipl/r_probe.repl
+[script] load /Users/kodamay/dofbot_pi5/aipl/probe.aipl
+[Loaded] /Users/kodamay/dofbot_pi5/aipl/probe.aipl
+[script] compile
+[Defined class P]
+[Registered types for class P: go/1]
+[Defined class Main]
+[Registered types for class Main: run/1]
+[Compiled]
+[Script execution completed]
+read -> err
+stat -> err
+== probe done
+ABCL/c+> 
