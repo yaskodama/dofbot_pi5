@@ -191,9 +191,10 @@ def shoot_board():
     return 160, 120, px
 
 
-def blob(px, W, H, rot180):
-    """緑/青の画素の重心（モデルの向きの画像座標）と色・数・外接枠"""
-    us, vs, cnt = [], [], {'green': 0, 'blue': 0}
+def blob(px, W, H, rot180, want=None):
+    """色の塊の重心（モデルの向きの画像座標）と色・数・外接枠。
+    want: 'green' / 'blue' ならその色だけ。None なら画素の多いほうの色（緑と青が同時に写っても混ぜない）"""
+    pts = {'green': [], 'blue': []}
     for y in range(H):
         for x in range(W):
             h, s, val = colorsys.rgb_to_hsv(*px[y * W + x])
@@ -202,13 +203,15 @@ def blob(px, W, H, rot180):
             deg = h * 360
             k = 'green' if 75 <= deg <= 165 else 'blue' if 190 <= deg <= 260 else None
             if k:
-                cnt[k] += 1
-                us.append(W - 1 - x if rot180 else x); vs.append(H - 1 - y if rot180 else y)
+                pts[k].append((W - 1 - x if rot180 else x, H - 1 - y if rot180 else y))
+    col = want if want in pts else max(pts, key=lambda c: len(pts[c]))
+    p = pts[col]
     # 立方体（3 cm）は見る距離（13 cm 前後）で画像の 5% 以上に写る。1.5% 未満の塊は細い物（青いケーブル等）とみなす
     # （2026-09-29: 1.7〜7.7% の青い塊を追って緑の立方体の前で 3 回空振りした）
-    if len(us) < max(20, W * H * 15 // 1000):
+    if len(p) < max(20, W * H * 15 // 1000):
         return None
-    return sum(us) / len(us), sum(vs) / len(vs), max(cnt, key=cnt.get), len(us), (min(us), max(us), min(vs), max(vs))
+    us = [q[0] for q in p]; vs = [q[1] for q in p]
+    return sum(us) / len(us), sum(vs) / len(vs), col, len(p), (min(us), max(us), min(vs), max(vs))
 
 
 _rid = [int(time.time() * 1000) % 1000000 + 300000]
@@ -257,7 +260,7 @@ def check_pose(s1, s, tol=6):
     return None                          # 読めない（動作中など）。確かめは飛ばす —— 読み直しを重ねると基板リセットを招く
 
 
-def locate(move_fn=None, shoot_fn=None, rot180=False, x=0.17, z=0.0, rounds=7, log=print):
+def locate(move_fn=None, shoot_fn=None, rot180=False, x=0.17, z=0.0, rounds=7, log=print, want=None):
     """move_fn(s1, [s2,s3,s4]) で腕を動かし、shoot_fn() -> (W, H, [(r,g,b) 0..1]) で撮る。
     rot180: 画像が 180° 回っているか（実機 True、CG False）"""
     move_fn = move_fn or (lambda s1, s: move(s1, s))
@@ -273,8 +276,10 @@ def locate(move_fn=None, shoot_fn=None, rot180=False, x=0.17, z=0.0, rounds=7, l
             continue
         move_fn(s1, look)
         img = shoot_fn()
-        if img and blob(img[2], img[0], img[1], rot180):
+        first = blob(img[2], img[0], img[1], rot180, want) if img else None
+        if first:
             x, z = sx, sz
+            want = want or first[2]          # 見つけた色に固定する（途中で隣の立方体へ乗り換えない）
             break
         log('scan: nothing at %.1f cm, base %d' % (r * 100, s1))
     else:
@@ -290,9 +295,9 @@ def locate(move_fn=None, shoot_fn=None, rot180=False, x=0.17, z=0.0, rounds=7, l
             log('round %d: no camera frame' % i); return None
         W, H, px = img
         f = (W / 2) / math.tan(math.radians(FOV / 2))
-        b = blob(px, W, H, rot180)
+        b = blob(px, W, H, rot180, want)
         if not b:
-            log('round %d: no green/blue in view at base %d look %s' % (i, s1, look)); return None
+            log('round %d: no %s in view at base %d look %s' % (i, want or 'green/blue', s1, look)); return None
         u, v, color, n, box = b
         c, d3, l, up = cam_frame(s1, look)
         ray = tuple(d3[k] + l[k] * (u - W / 2) / f + up[k] * (H / 2 - v) / f for k in range(3))

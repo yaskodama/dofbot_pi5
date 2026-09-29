@@ -4,7 +4,8 @@
 #   Q <reqid> Camera color real s1 s2 s3 s4 -> R <reqid> green|blue|none   （Xinu 板の手首カメラ /cam から 1 枚取って判定）
 #   Q <reqid> Camera color sim  s1 s2 s3 s4 -> R <reqid> green|blue|none   （CG の手首カメラの画像を判定）
 #     s1..s4 は「見ている」ときの腕の姿勢（サーボ角）。
-#   Q <reqid> Camera locate sim|real [grip] -> R <reqid> green|blue|none   （grip: 探す間の指。既定 30=開）
+#   Q <reqid> Camera locate sim|real [grip] [green|blue|any] -> R <reqid> green|blue|none
+#     grip: 探す間の指（既定 30=開）。色を指定するとその色だけを探す（1 つ置いたら残りの色だけ探すため）
 #     立方体を探す（locate.py）: 見る姿勢で撮る → 色の塊の重心を卓上へ逆射影 → カメラを向け直す、を収束まで。
 #     腕は color_service が動かす（sim: 127.0.0.1:8080/api/arm/sim、real: 板の /arm/pose）。
 #   Q <reqid> Camera lower <sim|real> here <grip> | <base> <r_cm> <grip> -> R <reqid> ok <指先の高さ cm>
@@ -238,14 +239,25 @@ def fresh_frame(which, after, wait=6):
     return None
 
 
-def do_locate(mode, grip=30):
+def do_locate(mode, grip=30, want=None):
     """grip: 探す間の指（30 開 / 135 閉）。持ち上げたあとの確かめでは閉じたまま動かす（開くと落とす）"""
     if mode == 'sim':
+        want = {}
         def move_fn(s1, s):
             k = plan_push('sim', 'pose %d %d %d %d 90 %d 1500  (look)' % (s1, s[0], s[1], s[2], grip), 1)
             urllib.request.urlopen('http://127.0.0.1:8080/api/arm/sim?cmd=pose+%d+%d+%d+%d+90+%d+1500' % (s1, s[0], s[1], s[2], grip), timeout=5).read()
+            want['a'] = [s1] + list(s)
             time.sleep(1.8); plan_done(k, 'ok')
-        shoot_fn = lambda: fresh_frame('simframe', time.time() + 0.1)
+        def shoot_fn():
+            # 模型がその姿勢に着いてから撮った画像だけを使う（窓が隠れて模型が止まっていると古い画像が届く）
+            t0 = time.time()
+            while time.time() - t0 < 8:
+                f = fresh_frame('simframe', time.time() + 0.1, wait=2)
+                a4 = (state.get('simframe_a') or [])[:4]
+                if f and len(a4) == 4 and all(abs(x - y) <= 2 for x, y in zip(a4, want.get('a', a4))):
+                    return f
+            print('  locate(sim) the model did not reach %s (last %s) — is the simulator window hidden?' % (want.get('a'), state.get('simframe_a')), flush=True)
+            return None
     else:
         def move_fn(s1, s):
             k = plan_push('real', 'pose %d %d %d %d 90 %d 1500  (look)' % (s1, s[0], s[1], s[2], grip), 1)
@@ -259,7 +271,7 @@ def do_locate(mode, grip=30):
             return f if f else loc.shoot_board()
     lines = []
     try:
-        res = loc.locate(move_fn, shoot_fn, rot180=(mode == 'real' and a.rot180), log=lines.append)
+        res = loc.locate(move_fn, shoot_fn, rot180=(mode == 'real' and a.rot180), log=lines.append, want=want)
     except Exception as ex:                                  # 腕が動かなかった等
         lines.append('locate stopped: %s' % ex); res = None
     for ln in lines:
@@ -278,7 +290,7 @@ def do_locate(mode, grip=30):
         W, H, px = img
         f = (W / 2) / math.tan(math.radians(loc.FOV / 2))
         half = f * loc.CUBE / 2 / 0.12
-        b = loc.blob(px, W, H, False)
+        b = loc.blob(px, W, H, mode == 'real' and a.rot180, res['color'])   # 見つけた立方体の色だけ（隣の立方体を混ぜない）
         if b:
             u, v = b[0], b[1]
             roi = (max(0, int(u - half)), max(0, int(v - half)), min(W, int(u + half)), min(H, int(v + half)))
@@ -441,6 +453,11 @@ class Hd(BaseHTTPRequestHandler):
                 which = p[1:]
                 with lock:
                     state[which], state[which + '_t'] = (w, h, px), time.time()
+                    if which == 'simframe' and 'a' in kv:         # この画像を撮ったときの模型の関節角
+                        try:
+                            state['simframe_a'] = [int(v) for v in kv['a'].split(',')]
+                        except ValueError:
+                            state['simframe_a'] = None
                     if which == 'simframe' and 'cx' in kv:        # CG の立方体がいまどこにあるか（掴まれているか）
                         state['cube_at'] = {k2: float(kv[k2]) for k2 in ('cx', 'cy', 'cz', 'held') if k2 in kv}
             self._send('ok\n')
@@ -452,7 +469,7 @@ class Hd(BaseHTTPRequestHandler):
         if p == '/sim':
             c = dict(x.split('=', 1) for x in q.split('&') if '=' in x).get('c', '')
             with lock:
-                if c in ('green', 'blue'):
+                if c in ('green', 'blue', 'both'):          # both: 緑と青を並べて置く
                     state['cube'] = {'color': c, 'seq': state['cube']['seq'] + 1}
                 cube = dict(state['cube'])
             self._send('CG cube = %s (placed again, #%d)\n' % (cube['color'], cube['seq']))
@@ -509,7 +526,8 @@ def serve(key, addr, reqid, actor, meth, arg):
         ans = color(arg.strip())
     elif meth == 'locate':
         k = plan_push(w[0] if w else 'real', 'locate ' + ' '.join(w[1:]))
-        ans = do_locate('sim' if w and w[0] == 'sim' else 'real', int(w[1]) if len(w) > 1 and w[1].isdigit() else 30)
+        ans = do_locate('sim' if w and w[0] == 'sim' else 'real', int(w[1]) if len(w) > 1 and w[1].isdigit() else 30,
+                        w[2] if len(w) > 2 and w[2] in ('green', 'blue') else None)   # 探す色（無ければ多いほう）
         plan_done(k, ans)
     elif meth == 'lower':
         k = plan_push(w[0] if w else 'real', 'lower ' + ' '.join(w[1:]))
