@@ -183,7 +183,17 @@ def cam_loop():
     """板のカメラを取り込み続ける（板へつなぐのはこの 1 本だけ）。
     以前はシミュレータの窓（Chrome）が板の :80 へ直接取りに行き、Chrome が要求なしの接続を張ったまま
     Xinu の単一スレッド HTTP を止めることが繰り返し起きた。窓は /realframe.bin をここから読む。"""
+    next_check = 0
     while True:
+        if time.time() >= next_check:            # 30 秒ごとに腕のアクターが答えるか見て、答えなければ載せ直す（板の再起動後など）
+            next_check = time.time() + 30
+            try:
+                v = loc.arm_udp('ver', tries=2)
+                if not v.startswith('board version'):
+                    print('  arm actor not answering (%r) — reload' % v, flush=True)
+                    loc.reload_actor()
+            except Exception:
+                pass
         try:
             f = fetch_board_frame(160)
         except Exception:

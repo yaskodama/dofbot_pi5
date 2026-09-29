@@ -41,7 +41,7 @@ PRE_BACK = 0.035                         # 手前は挟む位置から軸に沿�
 
 
 
-def http_get(url, timeout=5):
+def http_get(url, timeout=5, body=None):
     """板への GET。終わったら必ず RST で切る（SO_LINGER 0）。
     urllib で時間切れになった接続を普通に閉じると、Xinu の単一スレッド HTTP がその接続の後始末を待ち続け、
     ほかの接続を一切受け付けなくなった。クライアントのプロセスを殺す（RST が出る）と 10 秒ほどで戻った（2026-09-29）"""
@@ -55,7 +55,10 @@ def http_get(url, timeout=5):
     data = b''
     try:
         sk.connect((host, port))
-        sk.sendall(('GET %s HTTP/1.0\r\nHost: %s\r\n\r\n' % (path, host)).encode())
+        if body is None:
+            sk.sendall(('GET %s HTTP/1.0\r\nHost: %s\r\n\r\n' % (path, host)).encode())
+        else:
+            sk.sendall(('POST %s HTTP/1.0\r\nHost: %s\r\nContent-Length: %d\r\n\r\n' % (path, host, len(body))).encode() + body)
         while True:
             chunk = sk.recv(65536)
             if not chunk:
@@ -281,9 +284,8 @@ def reload_actor():
     ときどきアクターが空の答えしか返さなくなる（原因不明、2026-09-28〜29 に 3 回）。載せ直すと戻る"""
     src = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'aipl', 'dofbot_arm.aipl')
     try:
-        req = urllib.request.Request(B + '/cc', data=open(src, 'rb').read(), method='POST')
         with HTTP_LOCK:
-            urllib.request.urlopen(req, timeout=30).read()
+            http_get(B + '/cc', 30, body=open(src, 'rb').read())     # POST。終わったら RST で切る
     except Exception:
         pass
     time.sleep(1.5)
