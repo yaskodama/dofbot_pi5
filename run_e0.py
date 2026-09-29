@@ -35,10 +35,13 @@ def main():
     done = False
     while time.time() - t0 < 1500:
         time.sleep(2)
-        if '== done' in open(log, errors='ignore').read():
+        cur = open(log, errors='ignore').read()
+        if '== done' in cur:
             done = True
             break
-    p.kill(); subprocess.run(['pkill', '-f', 'r_sort_real.repl'])
+        if '[Abort]' in cur or 'Type error' in cur:     # 読み込みで失敗した（ロボットは動いていない）
+            break
+    p.kill(); subprocess.run(['pkill', '-f', 'abclrepl_thread.*r_sort_real.repl'])
     t1 = time.time()
     txt = open(log, errors='ignore').read()
     m = re.search(r'real arm placed (\d+) cube', txt)

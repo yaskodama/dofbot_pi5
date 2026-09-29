@@ -117,7 +117,7 @@ class Main {
   method run(p: Planner, d: Dancer, e: Eye) : unit !{net, time, log} {
     var z = remote_call("127.0.0.1:9012", "Plan", "reset", "", 2000);
     print("== 2. real arm (Xinu board)");
-    a = now p.sort(d, e, "192.168.3.101:9010", "real") timeout 900000 else 0;
+    var a = now p.sort(d, e, "192.168.3.101:9010", "real") timeout 900000 else 0;
     print("== real arm placed " ++ a ++ " cube(s)");
     print("== done");
   }
