@@ -241,7 +241,7 @@ def blob(px, W, H, rot180, want=None, min_frac=0.015):
             # 青は彩度 0.8・明るさ 0.2 以上だけ: 卓の水色のシートは彩度 0.3〜0.7、青の立方体は 1.0（2026-09-29 実測）
             # 緑は明るさ 0.06 から: 白い紙の上ではカメラの露出が下がり、緑の立方体は明るさ 0.1 に写った（同日実測）
             k = ('green' if (75 <= deg <= 165 and s >= 0.45) else
-                 'blue' if (190 <= deg <= 260 and s >= 0.8 and val >= 0.2) else None)
+                 'blue' if (190 <= deg <= 260 and s >= 0.8) else None)   # 青も明るさ 0.06 から（P2 の青は明るさ 0.1〜0.2 に写った）
             if k:
                 pts[k].append((W - 1 - x if rot180 else x, H - 1 - y if rot180 else y))
     col = want if want in pts else max(pts, key=lambda c: len(pts[c]))

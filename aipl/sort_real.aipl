@@ -90,10 +90,11 @@ class Planner {
           var h = now e.held(mode) timeout 15000 else "err";                                                   // 持ち上げた後: まだ挟んでいるか
           if (h0 == "yes") { if (h != "yes") { print("  held when closed, dropped while lifting"); } }
           if (h == "yes") {
+            r = now d.go(b, "set 6 140 400") timeout 5000 else 0; wait(650);                                 // 挟めたら少し緩める（押し当てたままの電流を減らす）
             var at = 30;
             if (c == "green") { at = 150; print("  green -> right"); } else { print("  blue -> left"); }
-            r = now d.go(b, "pose " ++ at ++ " 80 50 50 90 145 2600") timeout 5000 else 0; wait(2850);       // 置き場へ回す
-            var y2 = now e.lower(mode, at ++ " 17 145") timeout 60000 else "err";                            // 置き場へ 0.5 cm ずつ降ろす
+            r = now d.go(b, "pose " ++ at ++ " 80 50 50 90 140 2600") timeout 5000 else 0; wait(2850);       // 置き場へ回す
+            var y2 = now e.lower(mode, at ++ " 17 140") timeout 60000 else "err";                            // 置き場へ 0.5 cm ずつ降ろす
             r = now d.go(b, "set 6 30 600") timeout 5000 else 0; wait(850);                                   // 放す
             r = now d.go(b, "pose " ++ at ++ " 80 50 50 90 30 2000") timeout 5000 else 0; wait(2250);        // 上がる
             placed = placed + 1;
