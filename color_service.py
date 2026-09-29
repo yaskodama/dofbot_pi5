@@ -282,10 +282,10 @@ def do_locate(mode, grip=30, want=None):
     if mode == 'sim':
         goal = {}
         def move_fn(s1, s):
-            k = plan_push('sim', 'pose %d %d %d %d 90 %d 1500  (look)' % (s1, s[0], s[1], s[2], grip), 1)
-            urllib.request.urlopen('http://127.0.0.1:8080/api/arm/sim?cmd=pose+%d+%d+%d+%d+90+%d+1500' % (s1, s[0], s[1], s[2], grip), timeout=5).read()
+            k = plan_push('sim', 'pose %d %d %d %d 90 %d 2500  (look)' % (s1, s[0], s[1], s[2], grip), 1)
+            urllib.request.urlopen('http://127.0.0.1:8080/api/arm/sim?cmd=pose+%d+%d+%d+%d+90+%d+2500' % (s1, s[0], s[1], s[2], grip), timeout=5).read()
             goal['a'] = [s1] + list(s)
-            time.sleep(1.8); plan_done(k, 'ok')
+            time.sleep(2.8); plan_done(k, 'ok')
         def shoot_fn():
             # 模型がその姿勢に着いてから撮った画像だけを使う（窓が隠れて模型が止まっていると古い画像が届く）
             t0 = time.time()
@@ -298,9 +298,9 @@ def do_locate(mode, grip=30, want=None):
             return None
     else:
         def move_fn(s1, s):
-            k = plan_push('real', 'pose %d %d %d %d 90 %d 1500  (look)' % (s1, s[0], s[1], s[2], grip), 1)
+            k = plan_push('real', 'pose %d %d %d %d 90 %d 2500  (look)' % (s1, s[0], s[1], s[2], grip), 1)
             try:
-                loc.move(s1, s, grip=grip); time.sleep(1.8); loc.check_pose(s1, s)
+                loc.move(s1, s, 2500, grip); time.sleep(2.8); loc.check_pose(s1, s)   # ゆっくり（1.5 s では振りが速すぎた）
             except Exception as ex:
                 plan_done(k, 'FAIL %s' % ex); raise
             plan_done(k, 'ok')

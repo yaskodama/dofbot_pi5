@@ -198,11 +198,13 @@ def blob(px, W, H, rot180, want=None):
     for y in range(H):
         for x in range(W):
             h, s, val = colorsys.rgb_to_hsv(*px[y * W + x])
-            if s < 0.35 or val < 0.2:
+            if s < 0.35 or val < 0.06:
                 continue
             deg = h * 360
-            # 青は彩度 0.8 以上だけ: 卓の左の水色のシートは彩度 0.3〜0.7、青の立方体は 1.0（2026-09-29 実測）
-            k = 'green' if (75 <= deg <= 165 and s >= 0.5) else 'blue' if (190 <= deg <= 260 and s >= 0.8) else None
+            # 青は彩度 0.8・明るさ 0.2 以上だけ: 卓の水色のシートは彩度 0.3〜0.7、青の立方体は 1.0（2026-09-29 実測）
+            # 緑は明るさ 0.06 から: 白い紙の上ではカメラの露出が下がり、緑の立方体は明るさ 0.1 に写った（同日実測）
+            k = ('green' if (75 <= deg <= 165 and s >= 0.45) else
+                 'blue' if (190 <= deg <= 260 and s >= 0.8 and val >= 0.2) else None)
             if k:
                 pts[k].append((W - 1 - x if rot180 else x, H - 1 - y if rot180 else y))
     col = want if want in pts else max(pts, key=lambda c: len(pts[c]))
@@ -240,11 +242,26 @@ def arm_udp(cmd, board=('192.168.3.101', 9010), tries=8):
     return ''
 
 
+def reload_actor():
+    """板の腕のアクター（dofbot_arm.aipl）を POST /cc で載せ直す。
+    ときどきアクターが空の答えしか返さなくなる（原因不明、2026-09-28〜29 に 3 回）。載せ直すと戻る"""
+    src = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'aipl', 'dofbot_arm.aipl')
+    try:
+        req = urllib.request.Request(B + '/cc', data=open(src, 'rb').read(), method='POST')
+        urllib.request.urlopen(req, timeout=30).read()
+    except Exception:
+        pass
+    time.sleep(1.5)
+
+
 def move(s1, s, ms=1500, grip=30):
-    for _ in range(3):                  # I2C の書き込みはときどき FAIL rc=-2 で返る。送り直せば通る
+    ans = ''
+    for i in range(4):                  # I2C の書き込みはときどき FAIL rc=-2 で返る。送り直せば通る
         ans = arm_udp('pose %d %d %d %d 90 %d %d' % (s1, s[0], s[1], s[2], grip, ms))
         if ans.startswith('ok'):
             return True
+        if ans == '' and i == 1:        # 空の答え = アクターが死んでいる → 載せ直す
+            reload_actor()
         time.sleep(0.3)
     raise RuntimeError('arm did not move: %r' % ans)
 
@@ -261,30 +278,80 @@ def check_pose(s1, s, tol=6):
     return None                          # 読めない（動作中など）。確かめは飛ばす —— 読み直しを重ねると基板リセットを招く
 
 
+# ---- 範囲をもれなく一巡して、卓上の立方体の一覧を作る ------------------------------------------------
+# 手の届く帯（土台の軸から 14〜23 cm、正面から ±45°）を、カメラの写る範囲（見る距離 13 cm で横 15 cm・奥 11 cm）が
+# 重なるように 2 列 × 4 か所に分け、決まった順（蛇行）に全部撮る。各画像の緑と青の塊を卓上へ逆射影して一覧にする。
+# 以前は毎回同じ所から探し始めて最初に見えた物を追ったため、2 個目や少し外れた所の立方体を見落とした。
+SURVEY = [(0.16, yy) for yy in (-40, -13, 13, 40)] + [(0.21, yy) for yy in (40, 13, -13, -40)]
+PLACES = [(0.17, 150), (0.17, 30)]            # 置き場（ここに置いた立方体は数えない）
+REACH = (0.135, 0.235)
+
+
+def world_of(u, v, s1, look, W, H):
+    c, d3, l, up = cam_frame(s1, look)
+    f = (W / 2) / math.tan(math.radians(FOV / 2))
+    ray = tuple(d3[k] + l[k] * (u - W / 2) / f + up[k] * (H / 2 - v) / f for k in range(3))
+    t = (CUBE - c[1]) / ray[1]
+    return c[0] + ray[0] * t, c[2] + ray[2] * t
+
+
+def near_place(x, z, tol=0.045):
+    for r, b in PLACES:
+        yaw = math.radians(b - 90)
+        if math.hypot(x - r * math.cos(yaw), z + r * math.sin(yaw)) < tol:
+            return True
+    return False
+
+
+def survey(move_fn, shoot_fn, rot180=False, log=print):
+    """8 か所を順に撮り、見つかった立方体の一覧 [{'color','x','z','n','views'}] を返す（画素の多い順）"""
+    found = []
+    for r, yy in SURVEY:
+        s1 = 90 + yy
+        look = poses(r)[0]
+        if not look:
+            continue
+        move_fn(s1, look)
+        img = shoot_fn()
+        if not img:
+            log('survey: no frame at %.0f cm, base %d' % (r * 100, s1)); continue
+        W, H, px = img
+        seen = []
+        for col in ('green', 'blue'):
+            b = blob(px, W, H, rot180, col)
+            if not b:
+                continue
+            x, z = world_of(b[0], b[1], s1, look, W, H)
+            rr = math.hypot(x, z)
+            if near_place(x, z) or not (REACH[0] <= rr <= REACH[1]):
+                seen.append('%s(skip %.1fcm)' % (col, rr * 100)); continue
+            for d in found:                                  # 3 cm 以内は同じ立方体
+                if d['color'] == col and math.hypot(d['x'] - x, d['z'] - z) < 0.03:
+                    w = d['n'] + b[3]
+                    d['x'], d['z'] = (d['x'] * d['n'] + x * b[3]) / w, (d['z'] * d['n'] + z * b[3]) / w
+                    d['n'], d['views'] = w, d['views'] + 1
+                    break
+            else:
+                found.append({'color': col, 'x': x, 'z': z, 'n': b[3], 'views': 1})
+            seen.append('%s(%d px at %.1fcm)' % (col, b[3], rr * 100))
+        log('survey %.0f cm base %d: %s' % (r * 100, s1, ', '.join(seen) or 'nothing'))
+    found.sort(key=lambda d: -d['n'])
+    log('survey result: %s' % ['%s %.1fcm base %d' % (d['color'], math.hypot(d['x'], d['z']) * 100,
+                                  round(90 + math.degrees(math.atan2(-d['z'], d['x'])))) for d in found])
+    return found
+
+
 def locate(move_fn=None, shoot_fn=None, rot180=False, x=0.17, z=0.0, rounds=7, log=print, want=None):
     """move_fn(s1, [s2,s3,s4]) で腕を動かし、shoot_fn() -> (W, H, [(r,g,b) 0..1]) で撮る。
     rot180: 画像が 180° 回っているか（実機 True、CG False）"""
     move_fn = move_fn or (lambda s1, s: move(s1, s))
     shoot_fn = shoot_fn or shoot_board
     color = None
-    # はじめの 1 枚に立方体が無ければ、卓上を順に見て探す（押されて動いたとき）
-    starts = [(x, z)] + [(rr * math.cos(math.radians(yy)), -rr * math.sin(math.radians(yy)))
-                         for rr in (0.15, 0.18, 0.21) for yy in (0, 20, -20, 40, -40)]   # 正面から ±40° まで
-    for sx, sz in starts:
-        r = math.hypot(sx, sz); s1 = round(90 + math.degrees(math.atan2(-sz, sx)))
-        look = poses(r)[0]
-        if not look:
-            continue
-        move_fn(s1, look)
-        img = shoot_fn()
-        first = blob(img[2], img[0], img[1], rot180, want) if img else None
-        if first:
-            x, z = sx, sz
-            want = want or first[2]          # 見つけた色に固定する（途中で隣の立方体へ乗り換えない）
-            break
-        log('scan: nothing at %.1f cm, base %d' % (r * 100, s1))
-    else:
-        log('scan: no cube anywhere'); return None
+    # まず範囲をもれなく一巡して一覧を作り、探している色の立方体を選ぶ（無ければ none）
+    cands = [d for d in survey(move_fn, shoot_fn, rot180, log) if want in (None, d['color'])]
+    if not cands:
+        log('survey: no %s cube in reach' % (want or 'green/blue')); return None
+    x, z, want = cands[0]['x'], cands[0]['z'], cands[0]['color']
     for i in range(rounds):
         r = math.hypot(x, z); s1 = round(90 + math.degrees(math.atan2(-z, x)))
         look = poses(r)[0]
@@ -298,7 +365,7 @@ def locate(move_fn=None, shoot_fn=None, rot180=False, x=0.17, z=0.0, rounds=7, l
         f = (W / 2) / math.tan(math.radians(FOV / 2))
         b = blob(px, W, H, rot180, want)
         if not b:
-            log('round %d: no %s in view at base %d look %s' % (i, want or 'green/blue', s1, look)); return None
+            log('round %d: no %s in view at base %d — keep the surveyed position' % (i, want or 'green/blue', s1)); break
         u, v, color, n, box = b
         c, d3, l, up = cam_frame(s1, look)
         ray = tuple(d3[k] + l[k] * (u - W / 2) / f + up[k] * (H / 2 - v) / f for k in range(3))
