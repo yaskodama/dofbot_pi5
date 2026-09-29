@@ -33,8 +33,15 @@ def main():
     p = subprocess.Popen(['bash', '-lc', 'cd %s && eval "$(opam env)" && ./src/abclrepl_thread -q -f %s/aipl/r_sort_real.repl' % (REPL, HERE)],
                          stdout=open(log, 'w'), stderr=subprocess.STDOUT)
     done = False
+    stopped_mid = False
+    next_ver = time.time() + 30
     while time.time() - t0 < 1500:
         time.sleep(2)
+        if time.time() >= next_ver:          # 30 秒ごとに腕の基板が答えるか。止まっていたら打ち切る（空回りで時間を使わない）
+            next_ver = time.time() + 30
+            if '0.-1' in L.arm_udp('ver', tries=2):
+                stopped_mid = True
+                break
         cur = open(log, errors='ignore').read()
         if '== done' in cur:
             done = True
@@ -50,16 +57,19 @@ def main():
     surveys_empty = len(re.findall(r'no cube in reach', txt))
     dropped = len(re.findall(r'dropped while lifting', txt))
     held = json.loads(urllib.request.urlopen('http://localhost:8091/held?since=%f' % t0, timeout=5).read())
-    right = ask('Camera check real 150')          # 緑の置き場
-    left = ask('Camera check real 30')            # 青の置き場
-    L.move(90, [90, 90, 90], 2500, 30)
+    if stopped_mid:
+        right = left = 'skipped (board stopped)'
+    else:
+        right = ask('Camera check real 150')          # 緑の置き場
+        left = ask('Camera check real 30')            # 青の置き場
+        L.move(90, [90, 90, 90], 2500, 30)
     ver1 = L.arm_udp('ver', tries=3)
     rec = {'trial': n, 'kind': kind, 'cond': cond, 't_start': round(t0, 1), 'minutes': round((t1 - t0) / 60, 2),
            'finished': done, 'placed_reported': placed, 'grasp_tries': grasp_tries, 'empty_surveys': surveys_empty,
            'dropped_while_lifting': dropped, 'held_readbacks': [v for _, v in held],
            'place_right_seen': right, 'place_left_seen': left,
            'board_before': ver0, 'board_after': ver1, 'board_stopped': ('0.-1' in ver1) or ver1 == '',
-           'log': os.path.basename(log)}
+           'log': os.path.basename(log), 'stopped_mid_run': stopped_mid}
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     with open(OUT, 'a') as f:
         f.write(json.dumps(rec, ensure_ascii=False) + '\n')
