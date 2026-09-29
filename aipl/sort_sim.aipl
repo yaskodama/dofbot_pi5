@@ -7,7 +7,8 @@
 //            カメラを向け直す、を収束まで繰り返す（locate.py）。答えは色（green|blue|none）。
 //   get    … その立方体を挟む 土台の角度 / 手前 / 挟む 姿勢（逆運動学）。
 // 挟めるまで繰り返す: 持ち上げたあとに指の読み戻しで挟めたか確かめ、挟めていなければ探し直して挟み直す。
-// 指は 135 まで閉じる。実測の幅（2026-09-28）: 30,50→6.2 70→5.8 90→5.2 110→4.2 131→3.0 135→2.8 cm。3 cm の立方体は 131 で触れ、135 で 2 mm 押さえる。
+// 指は 145 まで閉じる。実測の幅（2026-09-28）: 30,50→6.2 70→5.8 90→5.2 110→4.2 131→3.0 135→2.8 cm。3 cm の立方体は 131 で触れる。
+// 135（2 mm 押さえ）では運ぶ途中で落とした（2026-09-29）ので 145 で強く押さえる。挟めていれば 131 付近で止まり、空なら 145。
 // （110 では 4.2 cm 開いたままで、立方体に触れていなかった）
 // 模型は CG の手首カメラ、実機は Xinu のカメラの画素で、同じ手順・同じ判定。
 // 挟む・置くときは lower（color_service）で卓上 7 cm から 0.5 cm ずつ降ろし、模型の計算で卓上 2.8 cm で止める
@@ -76,15 +77,15 @@ class Planner {
           r = now d.go(b, "pose " ++ base ++ " 80 50 50 90 30 2000") timeout 5000 else 0; wait(2250);
           tries = tries + 1;
         } else {
-          r = now d.go(b, "set 6 135 600") timeout 5000 else 0; wait(850);                                     // 挟む
-          r = now d.go(b, "pose " ++ base ++ " " ++ pre ++ " 90 135 1700") timeout 5000 else 0; wait(1950);  // 軸に沿って上がる
-          r = now d.go(b, "pose " ++ base ++ " 80 50 50 90 135 2000") timeout 5000 else 0; wait(2250);       // 持ち上げる（P_TOP）
+          r = now d.go(b, "set 6 145 600") timeout 5000 else 0; wait(850);                                     // 挟む
+          r = now d.go(b, "pose " ++ base ++ " " ++ pre ++ " 90 145 1700") timeout 5000 else 0; wait(1950);  // 軸に沿って上がる
+          r = now d.go(b, "pose " ++ base ++ " 80 50 50 90 145 2000") timeout 5000 else 0; wait(2250);       // 持ち上げる（P_TOP）
           var h = now e.held(mode) timeout 15000 else "err";                                                   // 指が物に当たって止まっているか
           if (h == "yes") {
             var at = 30;
             if (c == "green") { at = 150; print("  green -> right"); } else { print("  blue -> left"); }
-            r = now d.go(b, "pose " ++ at ++ " 80 50 50 90 135 2600") timeout 5000 else 0; wait(2850);       // 置き場へ回す
-            var y2 = now e.lower(mode, at ++ " 17 135") timeout 60000 else "err";                            // 置き場へ 0.5 cm ずつ降ろす
+            r = now d.go(b, "pose " ++ at ++ " 80 50 50 90 145 2600") timeout 5000 else 0; wait(2850);       // 置き場へ回す
+            var y2 = now e.lower(mode, at ++ " 17 145") timeout 60000 else "err";                            // 置き場へ 0.5 cm ずつ降ろす
             r = now d.go(b, "set 6 30 600") timeout 5000 else 0; wait(850);                                   // 放す
             r = now d.go(b, "pose " ++ at ++ " 80 50 50 90 30 2000") timeout 5000 else 0; wait(2250);        // 上がる
             placed = placed + 1;

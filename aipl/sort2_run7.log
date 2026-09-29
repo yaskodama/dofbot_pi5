@@ -1,0 +1,151 @@
+Compiler stub: compiler.ml
+[info] -f: /Users/kodamay/dofbot_pi5/aipl/r_sort.repl
+[script] /Users/kodamay/dofbot_pi5/aipl/r_sort.repl
+[script] load /Users/kodamay/dofbot_pi5/aipl/sort.aipl
+[Loaded] /Users/kodamay/dofbot_pi5/aipl/sort.aipl
+[script] compile
+[Defined class Dancer]
+[Registered types for class Dancer: go/2]
+[Defined class Eye]
+[Registered types for class Eye: locate/2, lower/2, held/1, get/2]
+[Defined class Planner]
+[Registered types for class Planner: sort/4]
+[Defined class Main]
+[Registered types for class Main: run/3]
+[Compiled]
+[Script execution completed]
+== 1. simulator (Mac)
+  pose 90 90 90 90 90 30 2600  -> ok pose 90 90 90 90 90 30 ms=2600
+ABCL/c+>   locate(sim, grip 30 any) = green
+  base = 100
+  pre = 61 43 1
+  try 1: green cube at base 100
+  set 6 30 500  -> ok set 6 -> 30 ms=500
+  pose 100 80 50 50 90 30 2000  -> ok pose 100 80 50 50 90 30 ms=2000
+  lower(here 30) = ok 1.5
+  set 6 135 600  -> ok set 6 -> 135 ms=600
+  pose 100 61 43 1 90 135 1700  -> ok pose 100 61 43 1 90 135 ms=1700
+  pose 100 80 50 50 90 135 2000  -> ok pose 100 80 50 50 90 135 ms=2000
+  held(sim) = yes
+  green -> right
+  pose 150 80 50 50 90 135 2600  -> ok pose 150 80 50 50 90 135 ms=2600
+  lower(150 17 135) = ok 1.5
+  set 6 30 600  -> ok set 6 -> 30 ms=600
+  pose 150 80 50 50 90 30 2000  -> ok pose 150 80 50 50 90 30 ms=2000
+  placed 1 cube(s)
+  locate(sim, grip 30 blue) = blue
+  base = 81
+  pre = 61 43 1
+  try 2: blue cube at base 81
+  set 6 30 500  -> ok set 6 -> 30 ms=500
+  pose 81 80 50 50 90 30 2000  -> ok pose 81 80 50 50 90 30 ms=2000
+  lower(here 30) = ok 1.5
+  set 6 135 600  -> ok set 6 -> 135 ms=600
+  pose 81 61 43 1 90 135 1700  -> ok pose 81 61 43 1 90 135 ms=1700
+  pose 81 80 50 50 90 135 2000  -> ok pose 81 80 50 50 90 135 ms=2000
+  held(sim) = yes
+  blue -> left
+  pose 30 80 50 50 90 135 2600  -> ok pose 30 80 50 50 90 135 ms=2600
+  lower(30 17 135) = ok 1.5
+  set 6 30 600  -> ok set 6 -> 30 ms=600
+  pose 30 80 50 50 90 30 2000  -> ok pose 30 80 50 50 90 30 ms=2000
+  placed 2 cube(s)
+  pose 90 90 90 90 90 30 3100  -> ok pose 90 90 90 90 90 30 ms=3100
+== simulator placed 2 cube(s)
+== 2. real arm (Xinu board)
+  pose 90 90 90 90 90 30 2600  -> ok pose 90 90 90 90 90 30 ms=2600
+  locate(real, grip 30 any) = blue
+  base = 79
+  pre = 70 27 13
+  try 1: blue cube at base 79
+  set 6 30 500  -> ok set 6 -> 30 ms=500
+  pose 79 80 50 50 90 30 2000  -> ok pose 79 80 50 50 90 30 ms=2000
+  lower(here 30) = ok 1.5
+  set 6 135 600  -> ok set 6 -> 135 ms=600
+  pose 79 70 27 13 90 135 1700  -> ok pose 79 70 27 13 90 135 ms=1700
+  pose 79 80 50 50 90 135 2000  -> ok pose 79 80 50 50 90 135 ms=2000
+  held(real) = no
+  try 1: the fingers closed on nothing — open, look again
+  set 6 30 500  -> ok set 6 -> 30 ms=500
+  locate(real, grip 30 any) = blue
+  base = 81
+  pre = 60 45 0
+  try 2: blue cube at base 81
+  set 6 30 500  -> ok set 6 -> 30 ms=500
+  pose 81 80 50 50 90 30 2000  -> ok pose 81 80 50 50 90 30 ms=2000
+  lower(here 30) = ok 1.5
+  set 6 135 600  -> ok set 6 -> 135 ms=600
+  pose 81 60 45 0 90 135 1700  -> ok pose 81 60 45 0 90 135 ms=1700
+  pose 81 80 50 50 90 135 2000  -> ok pose 81 80 50 50 90 135 ms=2000
+  held(real) = no
+  try 2: the fingers closed on nothing — open, look again
+  set 6 30 500  -> ok set 6 -> 30 ms=500
+  locate(real, grip 30 any) = blue
+  base = 77
+  pre = 67 30 12
+  try 3: blue cube at base 77
+  set 6 30 500  -> ok set 6 -> 30 ms=500
+  pose 77 80 50 50 90 30 2000  -> ok pose 77 80 50 50 90 30 ms=2000
+  lower(here 30) = ok 1.5
+  set 6 135 600  -> ok set 6 -> 135 ms=600
+  pose 77 67 30 12 90 135 1700  -> ok pose 77 67 30 12 90 135 ms=1700
+  pose 77 80 50 50 90 135 2000  -> ok pose 77 80 50 50 90 135 ms=2000
+  held(real) = no
+  try 3: the fingers closed on nothing — open, look again
+  set 6 30 500  -> ok set 6 -> 30 ms=500
+  locate(real, grip 30 any) = green
+  base = 109
+  pre = 71 26 13
+  try 4: green cube at base 109
+  set 6 30 500  -> ok set 6 -> 30 ms=500
+  pose 109 80 50 50 90 30 2000  -> ok pose 109 80 50 50 90 30 ms=2000
+  lower(here 30) = ok 1.5
+  set 6 135 600  -> ok set 6 -> 135 ms=600
+  pose 109 71 26 13 90 135 1700  -> ok pose 109 71 26 13 90 135 ms=1700
+  pose 109 80 50 50 90 135 2000  -> ok pose 109 80 50 50 90 135 ms=2000
+  held(real) = no
+  try 4: the fingers closed on nothing — open, look again
+  set 6 30 500  -> ok set 6 -> 30 ms=500
+  locate(real, grip 30 any) = none
+  try 5: no cube in view — look again
+  locate(real, grip 30 any) = none
+  try 6: no cube in view — look again
+  locate(real, grip 30 any) = blue
+  base = 73
+  pre = 64 36 11
+  try 7: blue cube at base 73
+  set 6 30 500  -> ok set 6 -> 30 ms=500
+  pose 73 80 50 50 90 30 2000  -> ok pose 73 80 50 50 90 30 ms=2000
+  lower(here 30) = ok 1.5
+  set 6 135 600  -> ok set 6 -> 135 ms=600
+  pose 73 64 36 11 90 135 1700  -> ok pose 73 64 36 11 90 135 ms=1700
+  pose 73 80 50 50 90 135 2000  -> ok pose 73 80 50 50 90 135 ms=2000
+  held(real) = yes
+  blue -> left
+  pose 30 80 50 50 90 135 2600  -> ok pose 30 80 50 50 90 135 ms=2600
+  lower(30 17 135) = ok 1.5
+  set 6 30 600  -> ok set 6 -> 30 ms=600
+  pose 30 80 50 50 90 30 2000  -> ok pose 30 80 50 50 90 30 ms=2000
+  placed 1 cube(s)
+  locate(real, grip 30 green) = none
+  try 8: no cube in view — look again
+  locate(real, grip 30 green) = none
+  try 9: no cube in view — look again
+  locate(real, grip 30 green) = none
+  try 10: no cube in view — look again
+  locate(real, grip 30 green) = none
+  try 11: no cube in view — look again
+  locate(real, grip 30 green) = none
+  try 12: no cube in view — look again
+
+[REPL thread error] Thread.Exit
+  locate(real, grip 30 green) = err
+  base = 110
+  pre = 58 44 8
+  try 13: err cube at base 110
+  set 6 30 500  -> ok set 6 -> 30 ms=500
+  pose 110 80 50 50 90 30 2000  -> ok pose 110 80 50 50 90 30 ms=2000
+  lower(here 30) = ok 1.5
+  set 6 135 600  -> ok set 6 -> 135 ms=600
+  pose 110 58 44 8 90 135 1700  -> ok pose 110 58 44 8 90 135 ms=1700
+  pose 110 80 50 50 90 135 2000  -> ok pose 110 80 50 50 90 135 ms=2000

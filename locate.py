@@ -191,7 +191,7 @@ def shoot_board():
     return 160, 120, px
 
 
-def blob(px, W, H, rot180, want=None):
+def blob(px, W, H, rot180, want=None, min_frac=0.015):
     """色の塊の重心（モデルの向きの画像座標）と色・数・外接枠。
     want: 'green' / 'blue' ならその色だけ。None なら画素の多いほうの色（緑と青が同時に写っても混ぜない）"""
     pts = {'green': [], 'blue': []}
@@ -211,7 +211,7 @@ def blob(px, W, H, rot180, want=None):
     p = pts[col]
     # 立方体（3 cm）は見る距離（13 cm 前後）で画像の 5% 以上に写る。1.5% 未満の塊は細い物（青いケーブル等）とみなす
     # （2026-09-29: 1.7〜7.7% の青い塊を追って緑の立方体の前で 3 回空振りした）
-    if len(p) < max(20, W * H * 15 // 1000):
+    if len(p) < max(20 if min_frac >= 0.015 else 8, int(W * H * min_frac)):
         return None
     us = [q[0] for q in p]; vs = [q[1] for q in p]
     return sum(us) / len(us), sum(vs) / len(vs), col, len(p), (min(us), max(us), min(vs), max(vs))
@@ -303,15 +303,31 @@ def near_place(x, z, tol=0.045):
     return False
 
 
-def survey(move_fn, shoot_fn, rot180=False, log=print):
-    """8 か所を順に撮り、見つかった立方体の一覧 [{'color','x','z','n','views'}] を返す（画素の多い順）"""
-    found = []
+def survey(move_fn, shoot_fn, rot180=False, log=print, glimpse_fn=None, want=None):
+    """8 か所を順に撮り、見つかった立方体の一覧 [{'color','x','z','n','views'}] を返す（画素の多い順）。
+    glimpse_fn(t0, t1, prev, target) -> [((w, h, px), pose4)]: 腕が prev から target へ動いている間に取れた画像と、
+    そのときの姿勢（見積もり）。移動中に「ちらっと」写った立方体を記録し、一巡で探している色が見つからなければ
+    その位置へ戻って見直す"""
+    found, glimpses = [], []
+    prev = None
     for r, yy in SURVEY:
         s1 = 90 + yy
         look = poses(r)[0]
         if not look:
             continue
+        t0 = time.time()
         move_fn(s1, look)
+        if glimpse_fn and prev:
+            for (gw, gh, gpx), pose in glimpse_fn(t0, time.time(), prev, [s1] + list(look)):
+                for col in ('green', 'blue'):
+                    gb = blob(gpx, gw, gh, rot180, col, min_frac=0.003)
+                    if not gb:
+                        continue
+                    gx, gz = world_of(gb[0], gb[1], pose[0], pose[1:4], gw, gh)
+                    if near_place(gx, gz) or not (0.10 <= math.hypot(gx, gz) <= 0.27):
+                        continue
+                    glimpses.append({'color': col, 'x': gx, 'z': gz, 'n': gb[3]})
+        prev = [s1] + list(look)
         img = shoot_fn()
         if not img:
             log('survey: no frame at %.0f cm, base %d' % (r * 100, s1)); continue
@@ -335,20 +351,40 @@ def survey(move_fn, shoot_fn, rot180=False, log=print):
                 found.append({'color': col, 'x': x, 'z': z, 'n': b[3], 'views': 1})
             seen.append('%s(%d px at %.1fcm)' % (col, b[3], rr * 100))
         log('survey %.0f cm base %d: %s' % (r * 100, s1, ', '.join(seen) or 'nothing'))
+    # 探している色が一巡で見つからず、移動中にちらっと写っていたら、その位置へ戻って見直す
+    have = {d['color'] for d in found}
+    for g in sorted(glimpses, key=lambda d: -d['n']):
+        if g['color'] in have or (want and g['color'] != want):
+            continue
+        rr = min(max(math.hypot(g['x'], g['z']), 0.16), 0.21)
+        s1 = round(90 + math.degrees(math.atan2(-g['z'], g['x'])))
+        look = poses(rr)[0]
+        if not look:
+            continue
+        log('glimpse: %s at %.1f cm, base %d — go back and look' % (g['color'], math.hypot(g['x'], g['z']) * 100, s1))
+        move_fn(s1, look)
+        img = shoot_fn()
+        b = blob(img[2], img[0], img[1], rot180, g['color']) if img else None
+        if b:
+            x, z = world_of(b[0], b[1], s1, look, img[0], img[1])
+            if not near_place(x, z) and REACH[0] <= math.hypot(x, z) <= REACH[1]:
+                found.append({'color': g['color'], 'x': x, 'z': z, 'n': b[3], 'views': 1})
+                have.add(g['color'])
+                log('glimpse confirmed: %s at %.1f cm' % (g['color'], math.hypot(x, z) * 100))
     found.sort(key=lambda d: -d['n'])
-    log('survey result: %s' % ['%s %.1fcm base %d' % (d['color'], math.hypot(d['x'], d['z']) * 100,
-                                  round(90 + math.degrees(math.atan2(-d['z'], d['x'])))) for d in found])
+    log('survey result: %s (glimpses %d)' % (['%s %.1fcm base %d' % (d['color'], math.hypot(d['x'], d['z']) * 100,
+                                  round(90 + math.degrees(math.atan2(-d['z'], d['x'])))) for d in found], len(glimpses)))
     return found
 
 
-def locate(move_fn=None, shoot_fn=None, rot180=False, x=0.17, z=0.0, rounds=7, log=print, want=None):
+def locate(move_fn=None, shoot_fn=None, rot180=False, x=0.17, z=0.0, rounds=7, log=print, want=None, glimpse_fn=None):
     """move_fn(s1, [s2,s3,s4]) で腕を動かし、shoot_fn() -> (W, H, [(r,g,b) 0..1]) で撮る。
     rot180: 画像が 180° 回っているか（実機 True、CG False）"""
     move_fn = move_fn or (lambda s1, s: move(s1, s))
     shoot_fn = shoot_fn or shoot_board
     color = None
     # まず範囲をもれなく一巡して一覧を作り、探している色の立方体を選ぶ（無ければ none）
-    cands = [d for d in survey(move_fn, shoot_fn, rot180, log) if want in (None, d['color'])]
+    cands = [d for d in survey(move_fn, shoot_fn, rot180, log, glimpse_fn, want) if want in (None, d['color'])]
     if not cands:
         log('survey: no %s cube in reach' % (want or 'green/blue')); return None
     x, z, want = cands[0]['x'], cands[0]['z'], cands[0]['color']

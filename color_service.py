@@ -42,7 +42,7 @@
 #   GET  /last                 直近の判定（1 行）
 #
 # 起動: python3 color_service.py [--board 192.168.3.101] [--port 9012] [--http 8091]
-import socket, time, argparse, threading, colorsys, urllib.request, urllib.parse, json, math, os, sys
+import socket, time, argparse, threading, colorsys, urllib.request, urllib.parse, json, math, os, sys, collections
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import locate as loc
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
@@ -55,6 +55,7 @@ ap.add_argument('--rot180', action='store_true', help='the real image is rotated
 a = ap.parse_args()
 
 lock = threading.Lock()
+RING = collections.deque(maxlen=40)          # 最近の画像 (時刻, 'real'|'sim', (w,h,px), 模型の関節角 or None)。移動中の「ちらっと」用
 state = {'last': '-', 'simframe': None, 'simframe_t': 0.0, 'realframe': None, 'realframe_t': 0.0,
          'cube': {'color': 'green', 'seq': 0},
          'stat': {'seq': 0, 'mode': '-', 'answer': '-', 'green': 0, 'blue': 0, 'need': 30, 'max_v': 0, 'why': '', 'roi': None}}
@@ -135,6 +136,7 @@ def grab_real():
 def fetch_board_frame(W=160):
     """板の /cam から 1 枚（待たない）。off=0 で写し取らせてから続きを取る。→ (w, h, [(r,g,b) 0..1]) か None"""
     base = 'http://%s' % a.board
+    t_cap = time.time()                              # 板が 1 枚を写し取る（off=0）のはこの頃
     hdr = get('%s/cam?w=%d&t=%d' % (base, W, time.time() * 1000), tries=2).decode('ascii', 'ignore').split()
     if len(hdr) >= 6 and hdr[5] == 'idle':           # 板の再起動後はカメラが止まっている → 配信を始めさせる
         get('%s/cam/start?frame=3&fps=10' % base, tries=1)
@@ -152,7 +154,25 @@ def fetch_board_frame(W=160):
     for k in range(dw * dh):
         v = buf[2 * k] | (buf[2 * k + 1] << 8)
         px.append((((v >> 11) & 31) / 31.0, ((v >> 5) & 63) / 63.0, (v & 31) / 31.0))
+    with lock:
+        RING.append((t_cap, 'real', (dw, dh, px), None))
     return dw, dh, px
+
+
+def glimpses_between(kind, t0, t1, prev, target, ms):
+    """腕が prev から target へ（ms かけて）動いている間 [t0, t1] に取れた画像と、そのときの姿勢。
+    模型は画像に添えた実際の関節角、実機は時刻で按分した見積もり"""
+    out = []
+    with lock:
+        frames = [f for f in RING if f[1] == kind and t0 < f[0] < t1]
+    for t, _, img, ang in frames:
+        if ang and len(ang) >= 4:
+            pose = ang[:4]
+        else:
+            k = min(1.0, max(0.0, (t - t0) / (ms / 1000.0)))
+            pose = [p + (q - p) * k for p, q in zip(prev, target)]
+        out.append((img, pose))
+    return out
 
 
 def cam_loop():
@@ -309,7 +329,8 @@ def do_locate(mode, grip=30, want=None):
             return f if f else loc.shoot_board()
     lines = []
     try:
-        res = loc.locate(move_fn, shoot_fn, rot180=(mode == 'real' and a.rot180), log=lines.append, want=want)
+        res = loc.locate(move_fn, shoot_fn, rot180=(mode == 'real' and a.rot180), log=lines.append, want=want,
+                         glimpse_fn=lambda t0, t1, prev, target: glimpses_between(mode, t0, t1, prev, target, 2500))
     except Exception as ex:                                  # 腕が動かなかった等
         lines.append('locate stopped: %s' % ex); res = None
     for ln in lines:
@@ -496,6 +517,7 @@ class Hd(BaseHTTPRequestHandler):
                             state['simframe_a'] = [int(v) for v in kv['a'].split(',')]
                         except ValueError:
                             state['simframe_a'] = None
+                        RING.append((time.time(), 'sim', (w, h, px), state['simframe_a']))
                     if which == 'simframe' and 'cx' in kv:        # CG の立方体がいまどこにあるか（掴まれているか）
                         state['cube_at'] = {k2: float(kv[k2]) for k2 in ('cx', 'cy', 'cz', 'held') if k2 in kv}
             self._send('ok\n')
