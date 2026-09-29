@@ -160,7 +160,7 @@ def fetch_board_frame(W=160):
         px.append((((v >> 11) & 31) / 31.0, ((v >> 5) & 63) / 63.0, (v & 31) / 31.0))
     with lock:
         RING.append((t_cap, 'real', (dw, dh, px), None))
-    return dw, dh, px
+    return dw, dh, px, t_cap
 
 
 def glimpses_between(kind, t0, t1, prev, target, ms):
@@ -199,8 +199,10 @@ def cam_loop():
         except Exception:
             f = None
         if f:
+            # 時刻は板が写し取った時刻（取り込み開始）。取り終えた時刻にすると、腕が動く前・途中の画像を
+            # 「着いた後の画像」として使い、置き場の確認や位置の計算を取り違えた（2026-09-29）
             with lock:
-                state['realframe'], state['realframe_t'] = f, time.time()
+                state['realframe'], state['realframe_t'] = f[:3], f[3]
         time.sleep(0.8 if f else 3.0)                # 0.3 s では板の HTTP を詰まらせた
 
 
