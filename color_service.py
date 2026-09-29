@@ -103,16 +103,21 @@ def roi_for(pose, W, H, rot180):
     return (u0, v0, u1, v1) if u1 - u0 >= 2 and v1 - v0 >= 2 else None
 
 
+HTTP_LOCK = threading.Lock()                 # 板の HTTP は一度に 1 件。係からの問い合わせを 1 本の列に並べる
+loc.HTTP_LOCK = HTTP_LOCK                    # locate.py（予備の取り込み・アクターの載せ直し）も同じ列
+
+
 def get(url, tries=6):
     for _ in range(tries):             # 板の HTTP は一度に 1 本。空や時間切れがあるので取り直す
         try:
-            with urllib.request.urlopen(url, timeout=5) as r:
-                b = r.read()
+            with HTTP_LOCK:            # 同時に 2 本出すと板の受け付けが追いつかず、HTTP 全体が止まった（2026-09-29）
+                with urllib.request.urlopen(url, timeout=5) as r:
+                    b = r.read()
             if b:
                 return b
         except Exception:
             pass
-        time.sleep(0.3)
+        time.sleep(0.5)
     return b''
 
 
@@ -187,7 +192,7 @@ def cam_loop():
         if f:
             with lock:
                 state['realframe'], state['realframe_t'] = f, time.time()
-        time.sleep(0.3 if f else 2.0)
+        time.sleep(0.8 if f else 3.0)                # 0.3 s では板の HTTP を詰まらせた
 
 
 def grab_board():

@@ -4,7 +4,8 @@
 # 1) 目標 (x, z) を見る姿勢へ動かして撮る  2) 青/緑の画素の重心を卓上（立方体の上面 y=3.5 cm）へ逆射影
 # 3) その点を新しい目標にして繰り返す（画像の端で切れていると重心が内側へ寄るので数回）
 # 出力（最後の行）: JSON {"x":..,"z":..,"base":..,"look":[..],"pre":[..],"grasp":[..],"color":..}
-import math, json, sys, time, colorsys, urllib.request, os
+import math, json, sys, time, colorsys, urllib.request, os, threading
+HTTP_LOCK = threading.Lock()    # 板の HTTP は一度に 1 件（color_service は自分の錠をここへ差し込む）
 
 B = 'http://192.168.3.101'
 # 寸法は geometry.json（Xinu シミュレータの CG と同じ値。set_geo で差し替わる）
@@ -42,8 +43,9 @@ PRE_BACK = 0.035                         # 手前は挟む位置から軸に沿�
 def get(url, tries=6):
     for _ in range(tries):
         try:
-            with urllib.request.urlopen(url, timeout=8) as r:
-                b = r.read()
+            with HTTP_LOCK:
+                with urllib.request.urlopen(url, timeout=8) as r:
+                    b = r.read()
             if b:
                 return b
         except Exception:
@@ -248,7 +250,8 @@ def reload_actor():
     src = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'aipl', 'dofbot_arm.aipl')
     try:
         req = urllib.request.Request(B + '/cc', data=open(src, 'rb').read(), method='POST')
-        urllib.request.urlopen(req, timeout=30).read()
+        with HTTP_LOCK:
+            urllib.request.urlopen(req, timeout=30).read()
     except Exception:
         pass
     time.sleep(1.5)
