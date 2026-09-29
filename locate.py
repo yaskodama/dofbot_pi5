@@ -9,7 +9,7 @@ import math, json, sys, time, colorsys, urllib.request, os
 B = 'http://192.168.3.101'
 # 寸法は geometry.json（Xinu シミュレータの CG と同じ値。set_geo で差し替わる）
 H0, L, L3, LG = 0.1075, 0.08285, 0.07385, 0.06
-CAM_ALONG, CAM_UP, CUBE, FOV = 0.0625, 0.032, 0.035, 60.0
+CAM_ALONG, CAM_UP, CUBE, FOV = 0.0625, 0.032, 0.030, 60.0   # CUBE: 1 辺 3 cm（実測）
 GEO_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'geometry.json')
 
 
