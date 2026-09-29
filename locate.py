@@ -201,7 +201,8 @@ def blob(px, W, H, rot180, want=None):
             if s < 0.35 or val < 0.2:
                 continue
             deg = h * 360
-            k = 'green' if 75 <= deg <= 165 else 'blue' if 190 <= deg <= 260 else None
+            # 青は彩度 0.8 以上だけ: 卓の左の水色のシートは彩度 0.3〜0.7、青の立方体は 1.0（2026-09-29 実測）
+            k = 'green' if (75 <= deg <= 165 and s >= 0.5) else 'blue' if (190 <= deg <= 260 and s >= 0.8) else None
             if k:
                 pts[k].append((W - 1 - x if rot180 else x, H - 1 - y if rot180 else y))
     col = want if want in pts else max(pts, key=lambda c: len(pts[c]))
@@ -268,7 +269,7 @@ def locate(move_fn=None, shoot_fn=None, rot180=False, x=0.17, z=0.0, rounds=7, l
     color = None
     # はじめの 1 枚に立方体が無ければ、卓上を順に見て探す（押されて動いたとき）
     starts = [(x, z)] + [(rr * math.cos(math.radians(yy)), -rr * math.sin(math.radians(yy)))
-                         for rr in (0.15, 0.18, 0.21) for yy in (0, 20, -20)]
+                         for rr in (0.15, 0.18, 0.21) for yy in (0, 20, -20, 40, -40)]   # 正面から ±40° まで
     for sx, sz in starts:
         r = math.hypot(sx, sz); s1 = round(90 + math.degrees(math.atan2(-sz, sx)))
         look = poses(r)[0]

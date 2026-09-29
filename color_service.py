@@ -175,9 +175,9 @@ def classify(img, roi):
             if s < 0.35 or v < 0.20:
                 continue
             deg = h * 360
-            if 75 <= deg <= 165:
+            if 75 <= deg <= 165 and s >= 0.5:
                 green += 1
-            elif 190 <= deg <= 260:
+            elif 190 <= deg <= 260 and s >= 0.8:             # 水色のシート（彩度 0.3〜0.7）を青と数えない
                 blue += 1
     ans = 'none'
     if max(green, blue) * 100 >= NEED * n:
@@ -242,11 +242,11 @@ def fresh_frame(which, after, wait=6):
 def do_locate(mode, grip=30, want=None):
     """grip: 探す間の指（30 開 / 135 閉）。持ち上げたあとの確かめでは閉じたまま動かす（開くと落とす）"""
     if mode == 'sim':
-        want = {}
+        goal = {}
         def move_fn(s1, s):
             k = plan_push('sim', 'pose %d %d %d %d 90 %d 1500  (look)' % (s1, s[0], s[1], s[2], grip), 1)
             urllib.request.urlopen('http://127.0.0.1:8080/api/arm/sim?cmd=pose+%d+%d+%d+%d+90+%d+1500' % (s1, s[0], s[1], s[2], grip), timeout=5).read()
-            want['a'] = [s1] + list(s)
+            goal['a'] = [s1] + list(s)
             time.sleep(1.8); plan_done(k, 'ok')
         def shoot_fn():
             # 模型がその姿勢に着いてから撮った画像だけを使う（窓が隠れて模型が止まっていると古い画像が届く）
@@ -254,9 +254,9 @@ def do_locate(mode, grip=30, want=None):
             while time.time() - t0 < 8:
                 f = fresh_frame('simframe', time.time() + 0.1, wait=2)
                 a4 = (state.get('simframe_a') or [])[:4]
-                if f and len(a4) == 4 and all(abs(x - y) <= 2 for x, y in zip(a4, want.get('a', a4))):
+                if f and len(a4) == 4 and all(abs(x - y) <= 2 for x, y in zip(a4, goal.get('a', a4))):
                     return f
-            print('  locate(sim) the model did not reach %s (last %s) — is the simulator window hidden?' % (want.get('a'), state.get('simframe_a')), flush=True)
+            print('  locate(sim) the model did not reach %s (last %s) — is the simulator window hidden?' % (goal.get('a'), state.get('simframe_a')), flush=True)
             return None
     else:
         def move_fn(s1, s):
