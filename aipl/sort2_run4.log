@@ -1,0 +1,173 @@
+Compiler stub: compiler.ml
+[info] -f: /Users/kodamay/dofbot_pi5/aipl/r_sort.repl
+[script] /Users/kodamay/dofbot_pi5/aipl/r_sort.repl
+[script] load /Users/kodamay/dofbot_pi5/aipl/sort.aipl
+[Loaded] /Users/kodamay/dofbot_pi5/aipl/sort.aipl
+[script] compile
+[Defined class Dancer]
+[Registered types for class Dancer: go/2]
+[Defined class Eye]
+[Registered types for class Eye: locate/2, lower/2, held/1, get/2]
+[Defined class Planner]
+[Registered types for class Planner: sort/4]
+[Defined class Main]
+[Registered types for class Main: run/3]
+[Compiled]
+[Script execution completed]
+== 1. simulator (Mac)
+  pose 90 90 90 90 90 30 1500  -> ok pose 90 90 90 90 90 30 ms=1500
+ABCL/c+> 
+[REPL thread error] Thread.Exit
+  locate(sim, grip 30 any) = green
+  base = 100
+  pre = 61 43 1
+  try 1: green cube at base 100
+  set 6 30 500  -> ok set 6 -> 30 ms=500
+  pose 100 80 50 50 90 30 1200  -> ok pose 100 80 50 50 90 30 ms=1200
+  lower(here 30) = ok 1.5
+  set 6 135 600  -> ok set 6 -> 135 ms=600
+  pose 100 61 43 1 90 135 1000  -> ok pose 100 61 43 1 90 135 ms=1000
+  pose 100 80 50 50 90 135 1200  -> ok pose 100 80 50 50 90 135 ms=1200
+  held(sim) = yes
+  green -> right
+  pose 150 80 50 50 90 135 1500  -> ok pose 150 80 50 50 90 135 ms=1500
+  lower(150 17 135) = ok 1.5
+  set 6 30 600  -> ok set 6 -> 30 ms=600
+  pose 150 80 50 50 90 30 1200  -> ok pose 150 80 50 50 90 30 ms=1200
+  placed 1 cube(s)
+  locate(sim, grip 30 blue) = blue
+  base = 81
+  pre = 61 43 1
+  try 2: blue cube at base 81
+  set 6 30 500  -> ok set 6 -> 30 ms=500
+  pose 81 80 50 50 90 30 1200  -> ok pose 81 80 50 50 90 30 ms=1200
+  lower(here 30) = ok 1.5
+  set 6 135 600  -> ok set 6 -> 135 ms=600
+  pose 81 61 43 1 90 135 1000  -> ok pose 81 61 43 1 90 135 ms=1000
+  pose 81 80 50 50 90 135 1200  -> ok pose 81 80 50 50 90 135 ms=1200
+  held(sim) = yes
+  blue -> left
+  pose 30 80 50 50 90 135 1500  -> ok pose 30 80 50 50 90 135 ms=1500
+  lower(30 17 135) = ok 1.5
+  set 6 30 600  -> ok set 6 -> 30 ms=600
+  pose 30 80 50 50 90 30 1200  -> ok pose 30 80 50 50 90 30 ms=1200
+  placed 2 cube(s)
+  pose 90 90 90 90 90 30 1800  -> ok pose 90 90 90 90 90 30 ms=1800
+== simulator placed 2 cube(s)
+== 2. real arm (Xinu board)
+  pose 90 90 90 90 90 30 1500  -> ok pose 90 90 90 90 90 30 ms=1500
+  locate(real, grip 30 any) = err
+  base = none
+  pre = none
+  try 1: err cube at base none
+  set 6 30 500  -> ok set 6 -> 30 ms=500
+  pose none 80 50 50 90 30 1200  -> usage: arm pose a1 a2 a3 a4 a5 a6 [ms]
+  lower(here 30) = err no cube located
+  set 6 135 600  -> ok set 6 -> 135 ms=600
+  pose none none 90 135 1000  -> usage: arm pose a1 a2 a3 a4 a5 a6 [ms]
+  pose none 80 50 50 90 135 1200  -> usage: arm pose a1 a2 a3 a4 a5 a6 [ms]
+  held(real) = yes
+  blue -> left
+  pose 30 80 50 50 90 135 1500  -> ok pose 30 80 50 50 90 135 ms=1500
+  lower(30 17 135) = ok 1.5
+  set 6 30 600  -> ok set 6 -> 30 ms=600
+  pose 30 80 50 50 90 30 1200  -> ok pose 30 80 50 50 90 30 ms=1200
+  placed 1 cube(s)
+  locate(real, grip 30 green) = err
+  base = none
+  pre = none
+  try 2: err cube at base none
+  set 6 30 500  -> ok set 6 -> 30 ms=500
+  pose none 80 50 50 90 30 1200  -> usage: arm pose a1 a2 a3 a4 a5 a6 [ms]
+  lower(here 30) = err no cube located
+  set 6 135 600  -> ok set 6 -> 135 ms=600
+  pose none none 90 135 1000  -> usage: arm pose a1 a2 a3 a4 a5 a6 [ms]
+  pose none 80 50 50 90 135 1200  -> usage: arm pose a1 a2 a3 a4 a5 a6 [ms]
+  held(real) = no
+  try 2: the fingers closed on nothing — open, look again
+  set 6 30 500  -> ok set 6 -> 30 ms=500
+  locate(real, grip 30 green) = err
+  base = none
+  pre = none
+  try 3: err cube at base none
+  set 6 30 500  -> ok set 6 -> 30 ms=500
+  pose none 80 50 50 90 30 1200  -> usage: arm pose a1 a2 a3 a4 a5 a6 [ms]
+  lower(here 30) = err no cube located
+  set 6 135 600  -> ok set 6 -> 135 ms=600
+  pose none none 90 135 1000  -> usage: arm pose a1 a2 a3 a4 a5 a6 [ms]
+  pose none 80 50 50 90 135 1200  -> usage: arm pose a1 a2 a3 a4 a5 a6 [ms]
+  held(real) = no
+  try 3: the fingers closed on nothing — open, look again
+  set 6 30 500  -> ok set 6 -> 30 ms=500
+  locate(real, grip 30 green) = err
+  base = none
+  pre = none
+  try 4: err cube at base none
+  set 6 30 500  -> ok set 6 -> 30 ms=500
+  pose none 80 50 50 90 30 1200  -> usage: arm pose a1 a2 a3 a4 a5 a6 [ms]
+  lower(here 30) = err no cube located
+  set 6 135 600  -> ok set 6 -> 135 ms=600
+  pose none none 90 135 1000  -> usage: arm pose a1 a2 a3 a4 a5 a6 [ms]
+  pose none 80 50 50 90 135 1200  -> usage: arm pose a1 a2 a3 a4 a5 a6 [ms]
+  held(real) = no
+  try 4: the fingers closed on nothing — open, look again
+  set 6 30 500  -> ok set 6 -> 30 ms=500
+  locate(real, grip 30 green) = err
+  base = none
+  pre = none
+  try 5: err cube at base none
+  set 6 30 500  -> ok set 6 -> 30 ms=500
+  pose none 80 50 50 90 30 1200  -> usage: arm pose a1 a2 a3 a4 a5 a6 [ms]
+  lower(here 30) = err no cube located
+  set 6 135 600  -> ok set 6 -> 135 ms=600
+  pose none none 90 135 1000  -> usage: arm pose a1 a2 a3 a4 a5 a6 [ms]
+  pose none 80 50 50 90 135 1200  -> usage: arm pose a1 a2 a3 a4 a5 a6 [ms]
+  held(real) = no
+  try 5: the fingers closed on nothing — open, look again
+  set 6 30 500  -> ok set 6 -> 30 ms=500
+  locate(real, grip 30 green) = err
+  base = none
+  pre = none
+  try 6: err cube at base none
+  set 6 30 500  -> ok set 6 -> 30 ms=500
+  pose none 80 50 50 90 30 1200  -> usage: arm pose a1 a2 a3 a4 a5 a6 [ms]
+  lower(here 30) = err no cube located
+  set 6 135 600  -> ok set 6 -> 135 ms=600
+  pose none none 90 135 1000  -> usage: arm pose a1 a2 a3 a4 a5 a6 [ms]
+  pose none 80 50 50 90 135 1200  -> usage: arm pose a1 a2 a3 a4 a5 a6 [ms]
+  held(real) = no
+  try 6: the fingers closed on nothing — open, look again
+  set 6 30 500  -> ok set 6 -> 30 ms=500
+  locate(real, grip 30 green) = err
+  base = none
+  pre = none
+  try 7: err cube at base none
+  set 6 30 500  -> ok set 6 -> 30 ms=500
+  pose none 80 50 50 90 30 1200  -> usage: arm pose a1 a2 a3 a4 a5 a6 [ms]
+  lower(here 30) = err no cube located
+  set 6 135 600  -> ok set 6 -> 135 ms=600
+  pose none none 90 135 1000  -> usage: arm pose a1 a2 a3 a4 a5 a6 [ms]
+  pose none 80 50 50 90 135 1200  -> usage: arm pose a1 a2 a3 a4 a5 a6 [ms]
+  held(real) = no
+  try 7: the fingers closed on nothing — open, look again
+  set 6 30 500  -> ok set 6 -> 30 ms=500
+  locate(real, grip 30 green) = err
+  base = none
+  pre = none
+  try 8: err cube at base none
+  set 6 30 500  -> ok set 6 -> 30 ms=500
+  pose none 80 50 50 90 30 1200  -> usage: arm pose a1 a2 a3 a4 a5 a6 [ms]
+  lower(here 30) = err no cube located
+  set 6 135 600  -> ok set 6 -> 135 ms=600
+  pose none none 90 135 1000  -> usage: arm pose a1 a2 a3 a4 a5 a6 [ms]
+  pose none 80 50 50 90 135 1200  -> usage: arm pose a1 a2 a3 a4 a5 a6 [ms]
+  held(real) = yes
+  blue -> left
+  pose 30 80 50 50 90 135 1500  -> ok pose 30 80 50 50 90 135 ms=1500
+  lower(30 17 135) = ok 1.5
+  set 6 30 600  -> ok set 6 -> 30 ms=600
+  pose 30 80 50 50 90 30 1200  -> ok pose 30 80 50 50 90 30 ms=1200
+  placed 2 cube(s)
+  pose 90 90 90 90 90 30 1800  -> ok pose 90 90 90 90 90 30 ms=1800
+== real arm placed 2 cube(s)
+== done

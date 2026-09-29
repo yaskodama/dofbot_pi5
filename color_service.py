@@ -132,6 +132,44 @@ def grab_real():
     return grab_board()
 
 
+def fetch_board_frame(W=160):
+    """板の /cam から 1 枚（待たない）。off=0 で写し取らせてから続きを取る。→ (w, h, [(r,g,b) 0..1]) か None"""
+    base = 'http://%s' % a.board
+    hdr = get('%s/cam?w=%d&t=%d' % (base, W, time.time() * 1000), tries=2).decode('ascii', 'ignore').split()
+    if len(hdr) >= 6 and hdr[5] == 'idle':           # 板の再起動後はカメラが止まっている → 配信を始めさせる
+        get('%s/cam/start?frame=3&fps=10' % base, tries=1)
+        return None
+    if len(hdr) < 6 or hdr[5] != 'streaming':
+        return None
+    dw, dh = int(hdr[0]), int(hdr[1])
+    total, buf = dw * dh * 2, b''
+    while len(buf) < total:
+        part = get('%s/cam?w=%d&off=%d&t=%d' % (base, W, len(buf), time.time() * 1000), tries=2)
+        if not part:
+            return None
+        buf += part
+    px = []
+    for k in range(dw * dh):
+        v = buf[2 * k] | (buf[2 * k + 1] << 8)
+        px.append((((v >> 11) & 31) / 31.0, ((v >> 5) & 63) / 63.0, (v & 31) / 31.0))
+    return dw, dh, px
+
+
+def cam_loop():
+    """板のカメラを取り込み続ける（板へつなぐのはこの 1 本だけ）。
+    以前はシミュレータの窓（Chrome）が板の :80 へ直接取りに行き、Chrome が要求なしの接続を張ったまま
+    Xinu の単一スレッド HTTP を止めることが繰り返し起きた。窓は /realframe.bin をここから読む。"""
+    while True:
+        try:
+            f = fetch_board_frame(160)
+        except Exception:
+            f = None
+        if f:
+            with lock:
+                state['realframe'], state['realframe_t'] = f, time.time()
+        time.sleep(0.3 if f else 2.0)
+
+
 def grab_board():
     """Xinu 板から 80x60 を 1 枚。RGB565 小端 → (w, h, [(r,g,b) 0..1])"""
     base, W = 'http://%s' % a.board, 80
@@ -492,6 +530,22 @@ class Hd(BaseHTTPRequestHandler):
                 pl = state.get('plan', {'seq': 0, 'items': []})
                 body = json.dumps({'seq': pl['seq'], 'items': pl['items'][-40:]}, ensure_ascii=False)
             self._send(body, 'application/json; charset=utf-8')
+        elif p == '/realframe.bin':                     # 実機カメラの最新 1 枚（RGB 各 1 バイト）。窓が描く
+            with lock:
+                f, t = state['realframe'], state['realframe_t']
+            if not f:
+                self._send('')
+                return
+            w, h, px = f
+            body = bytes(int(c * 255) for q in px for c in q)
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/octet-stream')
+            self.send_header('Content-Length', str(len(body)))
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('Access-Control-Expose-Headers', 'X-W, X-H, X-Age')
+            self.send_header('X-W', str(w)); self.send_header('X-H', str(h)); self.send_header('X-Age', '%.2f' % (time.time() - t))
+            self.end_headers()
+            self.wfile.write(body)
         elif p == '/geo':
             with lock:
                 g = state.get('geo') or {}
@@ -506,6 +560,7 @@ class Hd(BaseHTTPRequestHandler):
 
 
 state['geo'] = loc.load_geo()
+threading.Thread(target=cam_loop, daemon=True).start()
 threading.Thread(target=lambda: ThreadingHTTPServer(('', a.http), Hd).serve_forever(), daemon=True).start()
 
 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
