@@ -207,6 +207,15 @@ def lower(move_fn, angles_fn, s1, r, grip, top=0.05, floor=TIP_Y, step=0.005, ba
         y = max(floor, y - step)
 
 
+def point_pose(r, tip_y=0.05):
+    """立方体を置く位置を指先で指し示す姿勢（指先が卓上 tip_y）。作れる手の傾きを 1° 刻みで探す"""
+    for a3 in range(180, 129, -1):
+        s = pose_at(r, tip_y, a3)
+        if s:
+            return s
+    return None
+
+
 def cam_frame(s1, s):
     """姿勢でのカメラの位置と軸（3D、x 前 / y 上 / z 横）"""
     r_ = math.radians
