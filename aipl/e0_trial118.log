@@ -1,0 +1,44 @@
+Compiler stub: compiler.ml
+[info] -f: /Users/kodamay/dofbot_pi5/aipl/r_sort_real.repl
+[script] /Users/kodamay/dofbot_pi5/aipl/r_sort_real.repl
+[script] load /Users/kodamay/dofbot_pi5/aipl/sort_real.aipl
+[Loaded] /Users/kodamay/dofbot_pi5/aipl/sort_real.aipl
+[script] compile
+[Defined class Dancer]
+[Registered types for class Dancer: go/2]
+[Defined class Eye]
+[Registered types for class Eye: locate/2, lower/2, held/1, get/2]
+[Defined class Planner]
+[Registered types for class Planner: sort/4]
+[Defined class Main]
+[Registered types for class Main: run/3]
+[Compiled]
+[Script execution completed]
+== 2. real arm (Xinu board)
+  pose 90 90 90 90 90 30 2600  -> ok pose 90 90 90 90 90 30 ms=2600
+ABCL/c+> 
+[REPL thread error] Thread.Exit
+  locate(real, grip 30 any) = blue
+  base = 109
+  pre = 50 55 5
+  try 1: blue cube at base 109
+  set 6 30 500  -> ok set 6 -> 30 ms=500
+  pose 109 80 50 50 90 30 2000  -> ok pose 109 80 50 50 90 30 ms=2000
+  lower(here 30) = ok 1.2
+  set 6 145 800  -> ok set 6 -> 145 ms=800
+  held(real) = yes
+  pose 109 50 55 5 90 145 2500  -> ok pose 109 50 55 5 90 145 ms=2500
+  pose 109 80 50 50 90 145 3000  -> ok pose 109 80 50 50 90 145 ms=3000
+  held(real) = yes
+  set 6 140 400  -> ok set 6 -> 140 ms=400
+  blue -> left
+  pose 30 80 50 50 90 140 2600  -> ok pose 30 80 50 50 90 140 ms=2600
+  lower(30 17 140) = ok 1.2
+  set 6 30 600  -> ok set 6 -> 30 ms=600
+  pose 30 80 50 50 90 30 2000  -> ok pose 30 80 50 50 90 30 ms=2000
+  placed 1 cube(s)
+  locate(real, grip 30 green) = none
+  no more cubes in reach — done
+  pose 90 90 90 90 90 30 3100  -> ok pose 90 90 90 90 90 30 ms=3100
+== real arm placed 1 cube(s)
+== done
