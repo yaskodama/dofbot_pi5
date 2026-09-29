@@ -111,8 +111,7 @@ def get(url, tries=6):
     for _ in range(tries):             # 板の HTTP は一度に 1 本。空や時間切れがあるので取り直す
         try:
             with HTTP_LOCK:            # 同時に 2 本出すと板の受け付けが追いつかず、HTTP 全体が止まった（2026-09-29）
-                with urllib.request.urlopen(url, timeout=5) as r:
-                    b = r.read()
+                b = loc.http_get(url, 5)   # 終わったら必ず RST で切る（時間切れの接続が板の HTTP を止めた）
             if b:
                 return b
         except Exception:

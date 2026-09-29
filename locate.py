@@ -4,7 +4,7 @@
 # 1) 目標 (x, z) を見る姿勢へ動かして撮る  2) 青/緑の画素の重心を卓上（立方体の上面 y=3.5 cm）へ逆射影
 # 3) その点を新しい目標にして繰り返す（画像の端で切れていると重心が内側へ寄るので数回）
 # 出力（最後の行）: JSON {"x":..,"z":..,"base":..,"look":[..],"pre":[..],"grasp":[..],"color":..}
-import math, json, sys, time, colorsys, urllib.request, os, threading
+import math, json, sys, time, colorsys, urllib.request, urllib.parse, os, threading
 HTTP_LOCK = threading.Lock()    # 板の HTTP は一度に 1 件（color_service は自分の錠をここへ差し込む）
 
 B = 'http://192.168.3.101'
@@ -40,12 +40,44 @@ TIP_Y = 0.012                            # 挟む・置くときの指先の高�
 PRE_BACK = 0.035                         # 手前は挟む位置から軸に沿って 3.5 cm
 
 
+
+def http_get(url, timeout=5):
+    """板への GET。終わったら必ず RST で切る（SO_LINGER 0）。
+    urllib で時間切れになった接続を普通に閉じると、Xinu の単一スレッド HTTP がその接続の後始末を待ち続け、
+    ほかの接続を一切受け付けなくなった。クライアントのプロセスを殺す（RST が出る）と 10 秒ほどで戻った（2026-09-29）"""
+    import socket as _s, struct as _st
+    u = urllib.parse.urlsplit(url)
+    host, port = u.hostname, u.port or 80
+    path = u.path + ('?' + u.query if u.query else '')
+    sk = _s.socket(_s.AF_INET, _s.SOCK_STREAM)
+    sk.setsockopt(_s.SOL_SOCKET, _s.SO_LINGER, _st.pack('ii', 1, 0))
+    sk.settimeout(timeout)
+    data = b''
+    try:
+        sk.connect((host, port))
+        sk.sendall(('GET %s HTTP/1.0\r\nHost: %s\r\n\r\n' % (path, host)).encode())
+        while True:
+            chunk = sk.recv(65536)
+            if not chunk:
+                break
+            data += chunk
+            head, sep, body = data.partition(b'\r\n\r\n')
+            if sep:
+                m = [l for l in head.split(b'\r\n') if l.lower().startswith(b'content-length:')]
+                if m and len(body) >= int(m[0].split(b':')[1]):
+                    break
+    finally:
+        sk.close()                      # SO_LINGER 0 → RST
+    head, sep, body = data.partition(b'\r\n\r\n')
+    if not sep or not head.startswith(b'HTTP/') or b' 200 ' not in head.split(b'\r\n')[0] + b' ':
+        raise IOError('bad response')
+    return body
+
 def get(url, tries=6):
     for _ in range(tries):
         try:
             with HTTP_LOCK:
-                with urllib.request.urlopen(url, timeout=8) as r:
-                    b = r.read()
+                b = http_get(url, 8)
             if b:
                 return b
         except Exception:
