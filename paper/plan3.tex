@@ -1,0 +1,214 @@
+% !TEX program = xelatex
+% 論文① 完成に向けた実験計画（第3版） 2026-09-29 夕
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[a4paper,margin=20mm]{geometry}
+\usepackage{xeCJK}
+\usepackage{fontspec}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage[hidelinks]{hyperref}
+
+\setCJKmainfont{Hiragino Mincho ProN}
+\setCJKsansfont{Hiragino Sans}
+\setCJKmonofont{Hiragino Sans}
+\setmonofont{Menlo}[Scale=0.80]
+\xeCJKDeclareCharClass{CJK}{"2460 -> "24FF, "2500 -> "257F, "25A0 -> "25FF, "3000 -> "303F}
+
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+\setlist[itemize]{leftmargin=1.4em,itemsep=2pt,topsep=3pt}
+\setlist[enumerate]{leftmargin=1.6em,itemsep=2pt,topsep=3pt}
+
+\pagestyle{fancy}\fancyhf{}
+\lhead{\small 論文① 完成に向けた実験計画（第3版）}
+\rhead{\small \thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\setlength{\headheight}{13pt}
+\renewcommand{\tablename}{表}
+\renewcommand{\abstractname}{要旨}
+
+\title{\vspace{-12mm}\bfseries 論文①「自然言語から物理動作へ」\\[2mm]
+\large 完成に向けた実験計画（第3版）}
+\author{法政大学 データサイエンスセンター長\quad 児玉 靖司}
+\date{2026年9月29日（夕）}
+
+\begin{document}
+\maketitle
+\thispagestyle{fancy}
+
+\begin{abstract}
+\noindent
+同日昼の改訂版（第2版）を、午後の実機実験の結果に合わせて改める。
+実機は、手首カメラで探した立方体を挟んで色の置き場へ運ぶ作業を、1個で2回、緑と青の2個を1回の実行で1回完遂した。
+立方体を探す手順は、手の届く帯を決まった順に一巡する方式に改め、挟めたかの判定は指のたわみを踏まえた閾値に直した。
+一方で、成功率は依然として測っておらず、腕の基板が動作中に止まる原因は特定できていない。
+本書は、残る5週間半（9月30日〜11月6日）で主実験（事前選別なしA／ありB の対応比較）を成立させるための
+実験の並び、合格条件、実機の稼働時間、日程、撤退線を示す。数値のうち実測したものと見積もりは区別して書く。
+\end{abstract}
+
+\section{到達点（2026年9月29日夕）}
+
+\begin{table}[h]\centering\small
+\caption{論文①の研究課題ごとの到達点}
+\begin{tabularx}{\textwidth}{@{}lYl@{}}
+\toprule
+項目 & 状態 & 論文 \\
+\midrule
+RQ1 生成 & 未見の指示30件で予備実験済み（生成プログラム27件） & 7.1節 \\
+RQ3 検証段 & Tier-1（運動学）とTier-2（MuJoCo）で27件。Tier-1の誤った合格4件 & 7.2節 \\
+RQ2 両実行 & 同じ手順を模型と実機で実行。応答の欠落、狭い可達域 & 7.3節 \\
+実機の作業 & 1個の振り分けを2回、2個を1回の実行で1回完遂。模型が見逃した差・判定の誤りを同定 & 7.4, 7.5節 \\
+RQ4 主実験 & \textbf{未実施} & --- \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\paragraph{主実験の部品として実機で動いているもの。}
+\begin{itemize}
+\item \textbf{探す}（\texttt{locate}）：手の届く帯（土台の軸から14--23\,cm、正面から$\pm45^{\circ}$）を2列×4か所で一巡し、
+緑と青の塊を卓上へ逆射影した一覧から選び、カメラを向け直して詰める。一巡に約54秒（実測）。
+\item \textbf{下ろす}（\texttt{lower}）：指の軸を合わせ、卓上5\,cmから0.5\,cmずつ、指先1.2\,cmまで。
+\item \textbf{挟めたか}（\texttt{held}）：145で閉じた後の指の読み戻しが120--141なら挟んでいる（空144--145、3\,cmを挟むと139、実測）。
+\item \textbf{PLAN}：模型・実機・カメラ係の命令を一列に記録（実行履歴の原型）。
+\item 寸法の一元管理（\texttt{geometry.json}）、Xinuのカーネル（09:57版、ファン復旧）。
+\end{itemize}
+\noindent これらは第2版で「W2で作る」とした実機側のActor契約の中身にあたる。残るのは、型付きの結果と期限を持つ契約の形に整えることである。
+
+\section{未解決の問題と、主実験への影響}
+
+\begin{enumerate}
+\item \textbf{成功率が無い}。完遂は1個で2回、2個で1回にすぎず、そのたびに条件を直している。
+主実験の前に、条件を固定した反復で成功率を測る（E0$'$）。
+\item \textbf{腕の基板が動作中に止まる}（計5回、自動リセットを外した後も1回）。止まると電源の入れ直しとPi 5の再起動が要り、
+1回あたり5--10分の中断になる。主実験（250回前後）の間に止まる回数を測り、原因の候補（電源の容量、サーボの過負荷）を一つずつ除く。
+\item \textbf{実機の状態を読む判定が負荷の下で誤った}（7.5節）。判定の閾値は、実機の負荷の下で測った分布から決め直し、
+採点器$Y$を含むすべての判定を、目視との一致で検証してから使う（E0）。
+\item \textbf{Tier-2の模型が実機と合っていない}。指の長さ（6\,cm vs 推定8.3\,cm）、開き（固定値 vs 7段の実測）、
+立方体（3.1 vs 3\,cm）、カメラの位置、指のたわみ。Tier-2の判定が実機を予測するには、これらを実測に合わせる必要がある。
+\item \textbf{寸法の一部が未実測}（指の長さ、カメラの位置と画角、台座）。
+\item \textbf{1回の実行に時間がかかる}。一巡に54秒、2個の作業で数分。主実験の稼働時間を実測から見積もり直す（第5節）。
+\end{enumerate}
+
+\section{実験の並び（第3版）}
+
+\begin{table}[h]\centering\small
+\caption{実験の並び。E0$'$とE0を主実験の前に置く}
+\begin{tabularx}{\textwidth}{@{}clYl@{}}
+\toprule
+& 名称 & 内容 & 時期 \\
+\midrule
+E0$'$ & 実機の基礎性能 & 条件を凍結した\texttt{sort.aipl}で、1個20回・2個10回。完遂率、1回の所要時間（分布）、指の読み戻しの分布（挟んだ／空）、基板が止まった回数 & W1 \\
+E0 & 計器の検証 & 探索・挟めた判定・採点器$Y$が目視と一致するか。成功15・失敗15の場面を意図して作る & W2 \\
+E1 & 主実験A/B & 同一の初回生成プログラムを事前選別なし(A)／あり(B)で対応づけて実機実行 & W4 \\
+E2 & 生成の正しさ & 60指示で通過率（予備は30件で済み） & W3 \\
+E3/E4 & 却下と誤った合格 & E1のデータから段ごとの却下、誤った却下、誤った合格とその原因 & W5 \\
+E6 & 人手確認済み & 人手で正しいと確認したプログラムを両バックエンドで実行 & W5 \\
+E7 & CaP型との比較 & 同じプリミティブを呼ぶPythonを生成し、同じ試験集合で比較（論文に残すと決定） & W3--W5 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\paragraph{E0$'$の合格条件（結果を見る前に決める）。}1個の完遂率$\ge0.8$（20回中16回以上）、2個の完遂率$\ge0.7$（10回中7回以上）、
+30回の間に基板の停止が1回以下。満たさなければ、失敗を分類して一つだけ直し、同じ回数をもう一度行う。
+2回目も満たさなければ第7節の撤退線へ移る。
+
+\paragraph{E0$'$で凍結する条件。}指の閉じ145、判定120--141、指先1.2\,cm、探索2列×4か所、腕の速さ（探索2.5\,s）、
+立方体1辺3\,cm（緑・青）、卓上は白い紙のみ（他の色の物を置かない）、置き場は土台150°/30°の17\,cm。
+
+\section{課題集合（E1, E2, E7）}
+
+先生の決定により、物体の位置は手首カメラで探し、机上には緑と青の立方体を同時に置く。課題は六群のうち、この机上で意味を持つものに絞る。
+\begin{enumerate}
+\item 単一物体の移動（「緑を右へ」）
+\item 指定順での移動（「青を先に、次に緑を」）——順序は実行履歴で採点できる
+\item 色別の分類（「色で分けて」）
+\item 属性による選択（「左にある方を」）——探索の一覧の座標で採点する
+\item 積み重ね（「青の上に緑を」）——二段目は可達域内、三段目は届かない（7.3節）。\emph{届かない指示を意図的に含める}
+\item 解釈の明示が必要な指示——事前規則で明確化または除外
+\end{enumerate}
+\noindent 60指示を群ごとに10件とし、例示用と未見用をプロンプトを書く前に分ける。配置は2通り（緑と青の左右を入れ替える）。
+
+\section{試行数と実機の稼働時間}
+
+検出力の計算は変えない（効果0.25で62件、McNemar正確検定、検出力0.8）。60指示×2配置を計画値とする。
+
+\begin{table}[h]\centering\small
+\caption{実機の実行と稼働時間の見積もり（1回5分は午後の実行からの見積もりで、E0$'$で実測して引き直す）}
+\begin{tabularx}{\textwidth}{@{}lrrY@{}}
+\toprule
+実験 & 実機の実行 & 時間 & 備考 \\
+\midrule
+E0$'$ & 30--60 & 2.5--5\,h & 追加の30回を含む \\
+E0 & 30 & 2.5\,h & 判定と目視の一致 \\
+予備（10指示×2配置×A/B） & $\le$40 & $\le$3.5\,h & 本実験に入れない \\
+E1（60指示×2配置） & A 120 + B $\le$120 & $\le$20\,h & 配置の戻しを含まない \\
+E7（CaP型、同じ試験集合の一部） & $\le$40 & $\le$3.5\,h & 範囲はW3で決める \\
+\midrule
+計 & $\le$290 & $\le$35\,h & 3時間のセッション12回前後 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\noindent 第2版の見積もり（1回3分、計18.5時間）は、探索の一巡（54秒）と腕を遅くしたことを含んでいなかった。
+時間が足りない場合は、探索を「前回の一覧から始めて、見つからなければ一巡」に短縮する（主実験の前に凍結）。
+
+\section{日程（9月30日〜11月6日）}
+
+\subsection*{W1：9月30日（火）〜10月4日（日）— 条件を凍結し、基礎性能を測る}
+\begin{enumerate}
+\item 寸法を物差しで測る（指の長さ、手首からカメラ、指の軸からカメラ、台座）。画角は既知の大きさの立方体を既知の距離で撮って求める。
+\item \textbf{E0$'$}（1個20回・2個10回）。所要時間、読み戻しの分布、基板の停止を記録する。
+\item 基板の停止：別のアダプタ（容量の大きいもの）で同じ回数を行い、停止の頻度を比べる。
+\end{enumerate}
+
+\subsection*{W2：10月5日（月）〜10月11日（日）— 契約・ゲート・記録・採点器}
+\begin{enumerate}
+\item 実機側のActor契約：\texttt{observe}（探索の一覧）、\texttt{pick(color)}、\texttt{place(zone)}、\texttt{stack(on)}。
+結果は型付き（\texttt{OK, NOT\_FOUND, UNREACHABLE, NOT\_HELD, DROPPED, TIMEOUT}）、要求IDと期限つき。\textbf{時間切れを成功と扱わない}。
+\item 投入ゲート$H$（関節範囲、指先の最低高さ、可達帯）。両条件で有効。
+\item 実行履歴（JSONL）：PLANの列をそのまま保存する。
+\item 採点器$Y$：置き場と積み重ね位置を撮り、色と位置を判定する。\textbf{E0}で目視と一致させる。
+\item Tier-2（MuJoCo）を\texttt{geometry.json}から組み直す（指の長さ・開きの実測表・立方体3\,cm・カメラ位置・指のたわみ）。
+\end{enumerate}
+
+\subsection*{W3：10月12日（月）〜10月18日（日）— 課題集合・生成・予備実験}
+\begin{enumerate}
+\item 課題集合60件を確定し分割する。LLMからAIPLとCaP型Pythonの両方を生成する（E2, E7）。
+\item 予備実験（10指示）を端から端まで通す。予備のデータは本実験に入れない。
+\item 検出力を引き直し、\textbf{10月18日に計画を凍結する}。
+\end{enumerate}
+
+\subsection*{W4：10月19日（月）〜10月25日（日）— 本実験（E1）}
+課題順と条件順を無作為化する。配置は毎回同じ手順で戻す。操作者の介入と基板の停止をすべて記録する。
+条件Aで安全ゲートが止めた試行はAの失敗として数える。
+
+\subsection*{W5：10月26日（月）〜11月1日（日）— 副次実験（E6, E7）と解析}
+成功率差の信頼区間（指示単位のクラスタ・ブートストラップ）、McNemar、群別の結果、所要時間の分布、失敗の分類。
+
+\subsection*{W6：11月2日（月）〜11月6日（金）— 執筆}
+結果の節、要旨・考察・結論の改稿。7.2節のリンク長の記述を直す。版と寸法表を明記する。
+
+\section{リスクと撤退線}
+
+\paragraph{E0$'$を2回とも満たさない。}(1)立方体を指の開きに合う大きさ（3.5--4\,cm）に替える。(2)課題から積み重ねを外す。
+(3)課題を「押して移動」に変える。採用した対処を論文に明記する。
+
+\paragraph{基板の停止が減らない。}セッションを短く区切り、止まった試行は「制御器の失敗」として分母に含める。停止の頻度そのものを結果として報告する。
+
+\paragraph{稼働時間が足りない。}配置を1通りに減らす前に、探索の短縮（前回の一覧から始める）を試す。結果を見てから試行数を足さない。
+
+\paragraph{CaP型の比較が実装できない。}比較の主張を論文から削る（第2版の方針のとおり）。ただし先生の決定により、W3--W5に工数を確保して実装を試みる。
+
+\section{次に先生に確かめること}
+\begin{enumerate}
+\item 容量の大きい腕用アダプタの有無（基板の停止の切り分け）。
+\item 積み重ねの課題（二段目）を課題集合に含めてよいか。
+\item E0$'$の合格条件（1個0.8、2個0.7）でよいか。
+\end{enumerate}
+
+\end{document}
