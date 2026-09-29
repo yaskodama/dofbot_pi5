@@ -251,6 +251,10 @@ def blob(px, W, H, rot180, want=None, min_frac=0.015):
     if len(p) < max(20 if min_frac >= 0.015 else 8, int(W * H * min_frac)):
         return None
     us = [q[0] for q in p]; vs = [q[1] for q in p]
+    # 画像の縦も横も 85% 以上に広がる塊は、立方体ではなく大きな面（本・箱・敷物）。
+    # 2026-09-29: 左の置き場の横の緑の本を緑の立方体と判定した
+    if max(us) - min(us) >= 0.85 * W and max(vs) - min(vs) >= 0.85 * H:
+        return None
     return sum(us) / len(us), sum(vs) / len(vs), col, len(p), (min(us), max(us), min(vs), max(vs))
 
 
