@@ -120,8 +120,9 @@ def look_pose(r):
 
 
 def grasp_poses(r):
-    """指の軸が立方体の中心を通り、指先が卓上 TIP_Y の 挟む姿勢と、その軸上 PRE_BACK 手前"""
-    for a3 in range(180, 129, -5):
+    """指の軸が立方体の中心を通り、指先が卓上 TIP_Y の 挟む姿勢と、その軸上 PRE_BACK 手前。
+    手の傾きは 1° 刻みで探す（5° 刻みでは 13.6〜14.2 cm で 170° も 165° も関節の範囲を外れ、その間が抜けていた）"""
+    for a3 in range(180, 129, -1):
         a = math.radians(a3); d3 = (math.sin(a), math.cos(a))
         t = (TIP_Y - CUBE / 2) / d3[1]
         tip = (r + d3[0] * t, TIP_Y)
