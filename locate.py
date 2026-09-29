@@ -310,6 +310,7 @@ def survey(move_fn, shoot_fn, rot180=False, log=print, glimpse_fn=None, want=Non
     その位置へ戻って見直す"""
     found, glimpses = [], []
     prev = None
+    seen_uv = []                                   # (色, u, v, 土台) 画像のどこに写ったか
     for r, yy in SURVEY:
         s1 = 90 + yy
         look = poses(r)[0]
@@ -339,6 +340,7 @@ def survey(move_fn, shoot_fn, rot180=False, log=print, glimpse_fn=None, want=Non
                 continue
             x, z = world_of(b[0], b[1], s1, look, W, H)
             rr = math.hypot(x, z)
+            seen_uv.append((col, b[0], b[1], s1))
             if near_place(x, z) or not (REACH[0] <= rr <= REACH[1]):
                 seen.append('%s(skip %.1fcm)' % (col, rr * 100)); continue
             for d in found:                                  # 3 cm 以内は同じ立方体
@@ -351,6 +353,18 @@ def survey(move_fn, shoot_fn, rot180=False, log=print, glimpse_fn=None, want=Non
                 found.append({'color': col, 'x': x, 'z': z, 'n': b[3], 'views': 1})
             seen.append('%s(%d px at %.1fcm)' % (col, b[3], rr * 100))
         log('survey %.0f cm base %d: %s' % (r * 100, s1, ', '.join(seen) or 'nothing'))
+    # 向きを変えても画像の同じ所（±8 px）に 3 か所以上で写った塊は、卓上の物ではなくカメラと一緒に動く物
+    # （指に引っかかった立方体など）。2026-09-29: 緑が 4 つの向きで同じ 20.2 cm に「見つかった」
+    moving = []
+    for col, u, v, b1 in seen_uv:
+        same = {bb for cc, uu, vv, bb in seen_uv if cc == col and abs(uu - u) <= 8 and abs(vv - v) <= 8}
+        if len(same) >= 3 and (col, round(u), round(v)) not in moving:
+            moving.append((col, round(u), round(v)))
+    if moving:
+        log('survey: %s moves with the camera (in the hand?) — ignored' % moving)
+        def moves_with_camera(d):
+            return any(c == d['color'] for c, _, _ in moving)
+        found = [d for d in found if not moves_with_camera(d)]
     # 探している色が一巡で見つからず、移動中にちらっと写っていたら、その位置へ戻って見直す
     have = {d['color'] for d in found}
     for g in sorted(glimpses, key=lambda d: -d['n']):
