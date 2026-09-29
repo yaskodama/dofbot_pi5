@@ -184,6 +184,7 @@ def cam_loop():
     以前はシミュレータの窓（Chrome）が板の :80 へ直接取りに行き、Chrome が要求なしの接続を張ったまま
     Xinu の単一スレッド HTTP を止めることが繰り返し起きた。窓は /realframe.bin をここから読む。"""
     next_check = 0
+    fails = 0
     while True:
         if time.time() >= next_check:            # 30 秒ごとに腕のアクターが答えるか見て、答えなければ載せ直す（板の再起動後など）
             next_check = time.time() + 30
@@ -203,7 +204,12 @@ def cam_loop():
             # 「着いた後の画像」として使い、置き場の確認や位置の計算を取り違えた（2026-09-29）
             with lock:
                 state['realframe'], state['realframe_t'] = f[:3], f[3]
-        time.sleep(0.8 if f else 3.0)                # 0.3 s では板の HTTP を詰まらせた
+        fails = 0 if f else fails + 1
+        if fails >= 3:                              # 続けて失敗したら 15 s 黙る（問い合わせ続けると板の HTTP が戻らない）
+            print('  board HTTP not answering — back off 15 s', flush=True)
+            time.sleep(15); fails = 0
+        else:
+            time.sleep(0.8 if f else 3.0)            # 0.3 s では板の HTTP を詰まらせた
 
 
 def grab_board():
