@@ -417,7 +417,7 @@ def do_held(mode):
             ca = state.get('cube_at') or {}
         return 'yes' if ca.get('held') else 'no'
     g = state.get('geo') or {}
-    lim = float(g.get('held_max', {}).get('v', 133))
+    lim = float(g.get('held_max', {}).get('v', 141))
     a6 = []
     time.sleep(0.8)                              # 腕が止まってから読む（読めない読みを重ねると基板リセットを招く）
     ang = loc.read_angles()
@@ -428,8 +428,10 @@ def do_held(mode):
     v = sorted(a6)[len(a6) // 2]
     print('  held(real) servo6 = %s (limit %d)' % (a6, lim), flush=True)
     state['held_v'] = v
-    # 立方体に当たって止まった範囲だけを「挟めた」とする。開いた指（例: 40）を挟めたと数えていた（2026-09-29）
-    return 'yes' if 125 <= v <= lim + 1 else 'no'
+    # 閉じ切れずに止まったら「挟めた」。指令 145 で空なら 144〜145、3 cm の立方体を挟むと指がたわんで 139（2026-09-29 実測）。
+    # 以前の 125〜134（無負荷の指の開きから決めた）では挟めているのに「挟めていない」とし、振り付けが指を開いて落としていた。
+    # 開いた指（例: 40）は数えない
+    return 'yes' if 120 <= v <= lim else 'no'
 
 
 def get_loc(arg):
