@@ -29,7 +29,8 @@ class Dancer {
 }
 class Eye {
   method locate(mode: string, grip: string) : string !{net, log} {
-    var c = remote_call("127.0.0.1:9012", "Camera", "locate", mode ++ " " ++ grip, 60000);
+    var c = remote_call("127.0.0.1:9012", "Camera", "locate", mode ++ " " ++ grip, 180000);   // 一巡＋見直し＋詰めで 1〜2 分
+    if (c == "err") { c = "none"; }
     print("  locate(" ++ mode ++ ", grip " ++ grip ++ ") = " ++ c);
     reply(c);
   }
@@ -61,7 +62,7 @@ class Planner {
     r = now d.go(b, "pose 90 90 90 90 90 30 2600") timeout 5000 else 0; wait(2850);          // 直立
     while placed < 2 do {
       if (tries >= 30) { placed = 99; } else {
-      var c = now e.locate(mode, "30 " ++ need) timeout 90000 else "none";                  // 立方体を探す（腕も動く）
+      var c = now e.locate(mode, "30 " ++ need) timeout 200000 else "none";                 // 立方体を探す（腕も動く）
       if (c == "none") {
         print("  try " ++ (tries + 1) ++ ": no cube in view — look again");
         tries = tries + 1;

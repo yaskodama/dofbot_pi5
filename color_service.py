@@ -423,7 +423,8 @@ def do_held(mode):
     v = sorted(a6)[len(a6) // 2]
     print('  held(real) servo6 = %s (limit %d)' % (a6, lim), flush=True)
     state['held_v'] = v
-    return 'yes' if v <= lim else 'no'
+    # 立方体に当たって止まった範囲だけを「挟めた」とする。開いた指（例: 40）を挟めたと数えていた（2026-09-29）
+    return 'yes' if 125 <= v <= lim + 1 else 'no'
 
 
 def get_loc(arg):
