@@ -168,6 +168,17 @@ def lower(move_fn, angles_fn, s1, r, grip, top=0.05, floor=TIP_Y, step=0.005, ba
     a3 = grasp_poses(r)[2]
     if a3 is None:
         raise RuntimeError('cannot reach %.3f' % r)
+    if angles_fn is None:
+        # 読み戻しで当たりを見ない（卓に当たっても関節は指令どおりで検出できない）なら、刻む意味は無い。
+        # 0.5 cm ずつ 0.6 s 間隔で 8 回前後の指令を続けて送ると、腕の基板が止まった（2026-09-29、5 回の停止が
+        # すべて「下ろす」処理の最中か直後）。1 回の指令で 2 s かけて下ろす
+        s = pose_at(r, floor, a3)
+        if not s:
+            raise RuntimeError('no pose for tip %.3f at %.3f' % (floor, r))
+        move_fn(s1, s, grip, 2000)
+        time.sleep(2.3)
+        log('lowered to %.1f cm in one slow move' % (floor * 100))
+        return floor
     y = top
     while not pose_at(r, y, a3) and y > floor + 1e-6:        # 高すぎて姿勢が作れない所は飛ばす
         y = max(floor, y - step)
