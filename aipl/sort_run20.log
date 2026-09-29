@@ -1,0 +1,109 @@
+Compiler stub: compiler.ml
+[info] -f: /Users/kodamay/dofbot_pi5/aipl/r_sort.repl
+[script] /Users/kodamay/dofbot_pi5/aipl/r_sort.repl
+[script] load /Users/kodamay/dofbot_pi5/aipl/sort.aipl
+[Loaded] /Users/kodamay/dofbot_pi5/aipl/sort.aipl
+[script] compile
+[Defined class Dancer]
+[Registered types for class Dancer: go/2]
+[Defined class Eye]
+[Registered types for class Eye: locate/2, lower/2, held/1, get/2]
+[Defined class Planner]
+[Registered types for class Planner: sort/4]
+[Defined class Main]
+[Registered types for class Main: run/3]
+[Compiled]
+[Script execution completed]
+== 1. simulator (Mac)
+  pose 90 90 90 90 90 30 1500  -> ok pose 90 90 90 90 90 30 ms=1500
+ABCL/c+> 
+[REPL thread error] Thread.Exit
+  locate(sim, grip 30) = green
+  base = 90
+  pre = 61 43 1
+  grasp = 55 29 21
+  try 1: grasp at base 90
+  set 6 30 500  -> ok set 6 -> 30 ms=500
+  pose 90 80 50 50 90 30 1200  -> ok pose 90 80 50 50 90 30 ms=1200
+  lower(here 30) = ok 1.5
+  set 6 135 600  -> ok set 6 -> 135 ms=600
+  pose 90 61 43 1 90 135 1000  -> ok pose 90 61 43 1 90 135 ms=1000
+  pose 90 80 50 50 90 135 1200  -> ok pose 90 80 50 50 90 135 ms=1200
+  held(sim) = yes
+  try 1: the fingers stopped on the cube — it is in the hand
+  green -> right
+  pose 150 80 50 50 90 135 1500  -> ok pose 150 80 50 50 90 135 ms=1500
+  lower(150 17 135) = ok 1.5
+  set 6 30 600  -> ok set 6 -> 30 ms=600
+  pose 150 59 35 10 90 30 1000  -> ok pose 150 59 35 10 90 30 ms=1000
+  pose 90 90 90 90 90 30 1800  -> ok pose 90 90 90 90 90 30 ms=1800
+== simulator placed at base 150
+== 2. real arm (Xinu board)
+  pose 90 90 90 90 90 30 1500  -> ok pose 90 90 90 90 90 30 ms=1500
+  locate(real, grip 30) = blue
+  base = 93
+  pre = 60 41 9
+  grasp = 51 33 26
+  try 1: grasp at base 93
+  set 6 30 500  -> ok set 6 -> 30 ms=500
+  pose 93 80 50 50 90 30 1200  -> ok pose 93 80 50 50 90 30 ms=1200
+  lower(here 30) = ok 1.5
+  set 6 135 600  -> ok set 6 -> 135 ms=600
+  pose 93 60 41 9 90 135 1000  -> ok pose 93 60 41 9 90 135 ms=1000
+  pose 93 80 50 50 90 135 1200  -> ok pose 93 80 50 50 90 135 ms=1200
+  held(real) = no
+  try 1: the fingers closed on nothing — open, look again, try again
+  set 6 30 500  -> ok set 6 -> 30 ms=500
+  locate(real, grip 30) = blue
+  base = 89
+  pre = 53 53 5
+  grasp = 44 44 22
+  try 2: grasp at base 89
+  set 6 30 500  -> ok set 6 -> 30 ms=500
+  pose 89 80 50 50 90 30 1200  -> ok pose 89 80 50 50 90 30 ms=1200
+  lower(here 30) = ok 1.5
+  set 6 135 600  -> ok set 6 -> 135 ms=600
+  pose 89 53 53 5 90 135 1000  -> ok pose 89 53 53 5 90 135 ms=1000
+  pose 89 80 50 50 90 135 1200  -> ok pose 89 80 50 50 90 135 ms=1200
+  held(real) = no
+  try 2: the fingers closed on nothing — open, look again, try again
+  set 6 30 500  -> ok set 6 -> 30 ms=500
+  locate(real, grip 30) = none
+  try 3: no cube in view — look again
+  locate(real, grip 30) = none
+  try 4: no cube in view — look again
+  locate(real, grip 30) = blue
+  base = 88
+  pre = 70 27 13
+  grasp = 60 19 32
+  try 5: grasp at base 88
+  set 6 30 500  -> ok set 6 -> 30 ms=500
+  pose 88 80 50 50 90 30 1200  -> ok pose 88 80 50 50 90 30 ms=1200
+  lower(here 30) = ok 1.5
+  set 6 135 600  -> ok set 6 -> 135 ms=600
+  pose 88 70 27 13 90 135 1000  -> ok pose 88 70 27 13 90 135 ms=1000
+  pose 88 80 50 50 90 135 1200  -> ok pose 88 80 50 50 90 135 ms=1200
+  held(real) = no
+  try 5: the fingers closed on nothing — open, look again, try again
+  set 6 30 500  -> ok set 6 -> 30 ms=500
+  locate(real, grip 30) = green
+  base = 92
+  pre = 65 34 11
+  grasp = 55 26 29
+  try 6: grasp at base 92
+  set 6 30 500  -> ok set 6 -> 30 ms=500
+  pose 92 80 50 50 90 30 1200  -> ok pose 92 80 50 50 90 30 ms=1200
+  lower(here 30) = ok 1.5
+  set 6 135 600  -> ok set 6 -> 135 ms=600
+  pose 92 65 34 11 90 135 1000  -> ok pose 92 65 34 11 90 135 ms=1000
+  pose 92 80 50 50 90 135 1200  -> ok pose 92 80 50 50 90 135 ms=1200
+  held(real) = yes
+  try 6: the fingers stopped on the cube — it is in the hand
+  green -> right
+  pose 150 80 50 50 90 135 1500  -> ok pose 150 80 50 50 90 135 ms=1500
+  lower(150 17 135) = ok 1.5
+  set 6 30 600  -> ok set 6 -> 30 ms=600
+  pose 150 59 35 10 90 30 1000  -> ok pose 150 59 35 10 90 30 ms=1000
+  pose 90 90 90 90 90 30 1800  -> ok pose 90 90 90 90 90 30 ms=1800
+== real arm placed at base 150
+== done

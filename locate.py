@@ -204,7 +204,9 @@ def blob(px, W, H, rot180):
             if k:
                 cnt[k] += 1
                 us.append(W - 1 - x if rot180 else x); vs.append(H - 1 - y if rot180 else y)
-    if len(us) < max(20, W * H // 400):
+    # 立方体（3 cm）は見る距離（13 cm 前後）で画像の 5% 以上に写る。1.5% 未満の塊は細い物（青いケーブル等）とみなす
+    # （2026-09-29: 1.7〜7.7% の青い塊を追って緑の立方体の前で 3 回空振りした）
+    if len(us) < max(20, W * H * 15 // 1000):
         return None
     return sum(us) / len(us), sum(vs) / len(vs), max(cnt, key=cnt.get), len(us), (min(us), max(us), min(vs), max(vs))
 
