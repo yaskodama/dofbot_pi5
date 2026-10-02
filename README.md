@@ -1,5 +1,7 @@
 # dofbot_pi5
 
+日本語 | [English](README.en.md)
+
 Yahboom DOFBOT（6 軸、Raspberry Pi 5 版）を **Embedded Xinu + AIPL** で動かすための Mac 側の道具と振り付け。
 Xinu 側（I²C の腕ドライバ、UVC カメラ）は [xinu-rpi5](https://github.com/yaskodama/xinu-rpi5)、
 シミュレータ（CG の腕・立方体・手首カメラ、PLAN 表示）は [aice-avm](https://github.com/yaskodama/aice-avm) にある。
@@ -9,6 +11,8 @@ Xinu 側（I²C の腕ドライバ、UVC カメラ）は [xinu-rpi5](https://git
 [![2026年9月14日（YouTube）](https://img.youtube.com/vi/MSeznEtUzes/hqdefault.jpg)](https://www.youtube.com/watch?v=MSeznEtUzes)
 
 https://www.youtube.com/watch?v=MSeznEtUzes
+
+## ファイル
 
 | ファイル | 中身 |
 |---|---|
