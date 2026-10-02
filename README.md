@@ -4,6 +4,12 @@ Yahboom DOFBOT（6 軸、Raspberry Pi 5 版）を **Embedded Xinu + AIPL** で�
 Xinu 側（I²C の腕ドライバ、UVC カメラ）は [xinu-rpi5](https://github.com/yaskodama/xinu-rpi5)、
 シミュレータ（CG の腕・立方体・手首カメラ、PLAN 表示）は [aice-avm](https://github.com/yaskodama/aice-avm) にある。
 
+## 動画
+
+[![2026年9月14日（YouTube）](https://img.youtube.com/vi/MSeznEtUzes/hqdefault.jpg)](https://www.youtube.com/watch?v=MSeznEtUzes)
+
+https://www.youtube.com/watch?v=MSeznEtUzes
+
 | ファイル | 中身 |
 |---|---|
 | `aipl/sort.aipl` | 立方体を手首カメラで探して挟み、緑は右・青は左に置く。模型 → 実機の順に同じプログラムで実行 |
