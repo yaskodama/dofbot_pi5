@@ -1,11 +1,11 @@
-// one_cube.aipl —— 立方体1個を掴んで運んで置くだけの版。
-// 同じソースを、模型（aice-avm 内蔵）と実機（Xinu 板）の両方へ向けられる。
-// 変えるのは接続先の住所だけで、作業の手順は1行も変えない。
+// one_cube.aipl —— minimal version: just grasp one cube, carry it, and place it.
+// The same source can target both the sim model (built into aice-avm) and the real robot (Xinu board).
+// Only the target address changes; not a single line of the task procedure changes.
 //
-//   模型: BACKEND = "sim"    → http://localhost:8080/api/arm/sim
-//   実機: BACKEND = "real"   → 192.168.3.101 の Arm アクター
+//   sim model:  BACKEND = "sim"    → http://localhost:8080/api/arm/sim
+//   real robot: BACKEND = "real"   → the Arm actor on 192.168.3.101
 //
-// 姿勢はすべて実機のサーボ範囲 0..180 に収まる値だけを使う。
+// All poses use only values within the real robot's servo range 0..180.
 class OneCube {
   var b = "192.168.3.101:9010";
 

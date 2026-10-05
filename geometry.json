@@ -1,5 +1,5 @@
 {
-  "_note": "DOFBOT の寸法（m / 度）。Xinu シミュレータの CG・CG カメラ・color_service/locate.py の逆運動学と色の塊の逆射影が、すべてこの値を使う。src が URDF のものは j3soon/OmniIsaacGymEnvs-DofbotReacher の dofbot.urdf、guess は仮置き（未実測）。実測したら値と src を書き換える（シミュレータの「寸法」から保存できる）。",
+  "_note": "DOFBOT dimensions (m / degrees). The Xinu simulator's CG, the CG camera, and the inverse kinematics and color-blob back-projection in color_service/locate.py all use these values. Entries whose src is URDF come from dofbot.urdf in j3soon/OmniIsaacGymEnvs-DofbotReacher; guess means a placeholder (not yet measured). Once measured, update the value and src (they can be saved from the simulator's dimensions panel).",
   "base_h": {
     "v": 0.066,
     "src": "guess",
@@ -29,7 +29,7 @@
     "v": 0.083,
     "src": "guess",
     "label": "指の長さ（付け根→指先）",
-    "note": "URDF 由来の 6 cm では、模型で指先 2.3 cm に下げた所で実機が卓に当たった → 約 2.3 cm 長いと推定（2026-09-28）。要実測"
+    "note": "With the URDF value of 6 cm, the real robot hit the table where the sim model had the fingertips lowered to 2.3 cm, so the true value is estimated to be about 2.3 cm longer (2026-09-28). Needs measuring."
   },
   "cam_along": {
     "v": 0.0625,
@@ -109,12 +109,12 @@
     "v": 1,
     "src": "measured",
     "label": "実機の土台の補正（度、+ で右へ）",
-    "note": "実機は計算より 1° 左を掴みに行く（2026-09-28 目視）"
+    "note": "The real robot grasps 1° to the left of the computed angle (seen by eye, 2026-09-28)."
   },
   "held_max": {
     "v": 141,
     "src": "measured",
     "label": "挟めた判定: 145 で閉じた後のサーボ6の読み戻しが 120〜これ以下なら物を挟んでいる",
-    "note": "空なら 144〜145、3 cm の立方体を挟むと 139（指がたわむ）。2026-09-29 実測。以前の 133 では挟めているのに外していた"
+    "note": "144–145 when empty, 139 when gripping a 3 cm cube (the fingers flex). Measured 2026-09-29. The old threshold of 133 reported a miss even when the cube was gripped."
   }
 }

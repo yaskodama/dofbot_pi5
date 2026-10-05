@@ -1,7 +1,7 @@
 #!/bin/bash
-# 立方体1個の運搬。$1 = sim（模型） / real（実機）。:8080 の腕窓を経由する。
-# 姿勢は 2026-09-27 に模型・実機の双方で 10/10 通った版。
-# 指先が机より下に入らないことを確認済み（最低 41.5mm）。
+# Carry one cube. $1 = sim (sim model) / real (the real robot). Goes through the arm window on :8080.
+# Poses are the version that passed 10/10 on both the sim model and the real robot on 2026-09-27.
+# Verified that the fingertips never go below the table (minimum 41.5mm).
 if [ "$1" = "real" ]; then ARGS=(-G "http://localhost:8080/api/arm" --data-urlencode "host=192.168.3.101")
 else                       ARGS=(-G "http://localhost:8080/api/arm/sim"); fi
 run(){ printf "  %-34s -> " "$1"; curl -s --max-time 12 "${ARGS[@]}" --data-urlencode "cmd=$1" | head -1; }

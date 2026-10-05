@@ -1,22 +1,22 @@
-// sort.aipl — complex.aipl の改良版: 卓上の緑と青の立方体を探して挟み、緑は右・青は左に置く（2 つとも）。
-// まず Mac の模型（127.0.0.1:9010）、次に実機（192.168.3.101:9010）。
+// sort.aipl — improved version of complex.aipl: find the green and blue cubes on the table, grasp each, and place green on the right and blue on the left (both cubes).
+// First the sim model on the Mac (127.0.0.1:9010), then the real robot (192.168.3.101:9010).
 //
-// カメラは挟む所の上（手首の上面、指の軸から 3.2 cm）に付いている。指の軸を立方体に向けると
-// カメラは立方体を外れる。そこで color_service.py（127.0.0.1:9012 の "Camera"）に:
-//   locate … 腕をずらしてカメラの軸を立方体へ向けて撮り、色の塊の重心を卓上へ逆射影し、
-//            カメラを向け直す、を収束まで繰り返す（locate.py）。答えは色（green|blue|none）。
-//   get    … その立方体を挟む 土台の角度 / 手前 / 挟む 姿勢（逆運動学）。
-// 挟めるまで繰り返す: 持ち上げたあとに指の読み戻しで挟めたか確かめ、挟めていなければ探し直して挟み直す。
-// 指は 145 まで閉じる。実測の幅（2026-09-28）: 30,50→6.2 70→5.8 90→5.2 110→4.2 131→3.0 135→2.8 cm。3 cm の立方体は 131 で触れる。
-// 135（2 mm 押さえ）では運ぶ途中で落とした（2026-09-29）ので 145 で強く押さえる。挟めていれば 131 付近で止まり、空なら 145。
-// （110 では 4.2 cm 開いたままで、立方体に触れていなかった）
-// 模型は CG の手首カメラ、実機は Xinu のカメラの画素で、同じ手順・同じ判定。
-// 挟む・置くときは lower（color_service）で卓上 7 cm から 0.5 cm ずつ降ろし、模型の計算で卓上 2.8 cm で止める
-// （模型で 2.3 cm まで下げると実機は卓に当たって本体が浮いた。実機の指は模型より長い）。
-// 置き場は土台 150°（右）/ 30°（左）の前 17 cm。
+// The camera sits above the grasp point (on top of the wrist, 3.2 cm from the finger axis). Pointing the finger axis at the cube
+// makes the camera miss it. So color_service.py ("Camera" at 127.0.0.1:9012) provides:
+//   locate … shift the arm to aim the camera axis at the cube and take a shot, back-project the color blob's centroid onto the table,
+//            re-aim the camera; repeat until it converges (locate.py). Returns the color (green|blue|none).
+//   get    … base angle / approach (pre) / grasp pose for grasping that cube (inverse kinematics).
+// Repeat until grasped: after lifting, check the finger read-back to see whether the cube is held; if not, search again and re-grasp.
+// The fingers close to 145. Measured opening (2026-09-28): 30,50→6.2 70→5.8 90→5.2 110→4.2 131→3.0 135→2.8 cm. A 3 cm cube is touched at 131.
+// At 135 (2 mm squeeze) the cube was dropped in transit (2026-09-29), so squeeze hard at 145. If held, the fingers stop near 131; if empty, at 145.
+// (At 110 the fingers stayed 4.2 cm open and did not touch the cube.)
+// The sim model uses the CG wrist camera, the real robot uses pixels from the Xinu camera; same procedure, same decisions.
+// When grasping/placing, lower (color_service) descends from 7 cm above the table in 0.5 cm steps and stops at 2.8 cm above the table (per the sim model's math)
+// (lowering to 2.3 cm per the sim model made the real robot hit the table and lift its body; the real fingers are longer than the model's).
+// Drop-off spots: 17 cm out at base 150° (right) / 30° (left).
 class Dancer {
-  // 腕へ 1 手送る。前後で PLAN（color_service の "Plan"）に積んで結果を書き戻す
-  // → Xinu シミュレータの CG に命令の列が出て、いま実行中の手が反転する。
+  // Send one move to the arm. Before/after, push it onto PLAN ("Plan" in color_service) and write back the result
+  // → the command list shows up in the Xinu simulator's CG, with the move now executing highlighted.
   method go(b: string, s: string) : int !{net, log} {
     var where = "real";
     if (b == "127.0.0.1:9010") { where = "sim"; }
@@ -29,7 +29,7 @@ class Dancer {
 }
 class Eye {
   method locate(mode: string, grip: string) : string !{net, log} {
-    var c = remote_call("127.0.0.1:9012", "Camera", "locate", mode ++ " " ++ grip, 180000);   // 一巡＋見直し＋詰めで 1〜2 分
+    var c = remote_call("127.0.0.1:9012", "Camera", "locate", mode ++ " " ++ grip, 180000);   // one sweep + re-check + refinement: 1-2 min
     if (c == "err") { c = "none"; }
     print("  locate(" ++ mode ++ ", grip " ++ grip ++ ") = " ++ c);
     reply(c);
@@ -51,21 +51,21 @@ class Eye {
   }
 }
 class Planner {
-  // 卓上の立方体（緑と青の 2 つ）を、両方とも置き終わるまで 探す → 挟む → 色の置き場へ置く を繰り返す。
-  // 置いた立方体は探す範囲（正面から ±20°）の外（土台 150° / 30°）に出るので、次の探索では拾わない。
+  // Repeat search → grasp → place at the color's drop-off spot until both cubes on the table (green and blue) are placed.
+  // A placed cube ends up outside the search range (±20° from front), at base 150° / 30°, so the next search won't pick it up.
   method sort(d: Dancer, e: Eye, b: string, mode: string) : int !{net, time, log} {
     var r = 0;
     var placed = 0;
     var tries = 0;
     var base = "90";
-    var need = "any";           // 探す色: 1 つ置いたら残りの色だけを探す（卓上の他の青い物に固定されないように）
-    var misses = 0;             // 範囲を一巡して見つからなかった回数
-    r = now d.go(b, "pose 90 90 90 90 90 30 2600") timeout 5000 else 0; wait(2850);          // 直立
+    var need = "any";           // color to search for: after placing one, search only for the remaining color (so it won't lock onto other blue objects on the table)
+    var misses = 0;             // number of full sweeps that found nothing
+    r = now d.go(b, "pose 90 90 90 90 90 30 2600") timeout 5000 else 0; wait(2850);          // upright
     while placed < 2 do {
       if (tries >= 1000) { placed = placed + 100; } else { if (tries >= 30) { placed = 99; } else {
-      var c = now e.locate(mode, "30 " ++ need) timeout 200000 else "none";                 // 立方体を探す（腕も動く）
+      var c = now e.locate(mode, "30 " ++ need) timeout 200000 else "none";                 // search for a cube (the arm moves too)
       if (c == "none") {
-        // 探索は手の届く範囲をもれなく一巡する。1 つ以上置いた後に見つからなければ、もう残っていない
+        // A search sweeps the entire reachable range. If nothing is found after placing at least one, none are left
         misses = misses + 1;
         if (placed > 0) { if (misses >= 2) { print("  no more cubes in reach — done"); tries = 1000; }
                           else { print("  try " ++ (tries + 1) ++ ": nothing found — survey once more"); } }
@@ -76,28 +76,28 @@ class Planner {
         base = now e.get(mode, "base") timeout 8000 else "90";
         var pre = now e.get(mode, "pre") timeout 8000 else "59 35 10";
         print("  try " ++ (tries + 1) ++ ": " ++ c ++ " cube at base " ++ base);
-        r = now d.go(b, "set 6 30 500") timeout 5000 else 0; wait(700);                                        // 指を開く
-        r = now d.go(b, "pose " ++ base ++ " 80 50 50 90 30 2000") timeout 5000 else 0; wait(2250);          // 構え（P_TOP）
-        var y = now e.lower(mode, "here 30") timeout 60000 else "err";                                         // 立方体の上から 0.5 cm ずつ降ろす
+        r = now d.go(b, "set 6 30 500") timeout 5000 else 0; wait(700);                                        // open the fingers
+        r = now d.go(b, "pose " ++ base ++ " 80 50 50 90 30 2000") timeout 5000 else 0; wait(2250);          // ready pose (P_TOP)
+        var y = now e.lower(mode, "here 30") timeout 60000 else "err";                                         // lower from above the cube in 0.5 cm steps
         if (y == "err") {
           print("  try " ++ (tries + 1) ++ ": could not lower — look again");
           r = now d.go(b, "pose " ++ base ++ " 80 50 50 90 30 2000") timeout 5000 else 0; wait(2250);
           tries = tries + 1;
         } else {
-          r = now d.go(b, "set 6 145 800") timeout 5000 else 0; wait(1300);                                    // 挟む（閉じ切ってから少し待つ）
-          var h0 = now e.held(mode) timeout 15000 else "err";                                                  // 閉じた直後: 挟んでいるか
-          r = now d.go(b, "pose " ++ base ++ " " ++ pre ++ " 90 145 2500") timeout 5000 else 0; wait(2750);  // 軸に沿ってゆっくり上がる
-          r = now d.go(b, "pose " ++ base ++ " 80 50 50 90 145 3000") timeout 5000 else 0; wait(3250);       // ゆっくり持ち上げる（P_TOP）
-          var h = now e.held(mode) timeout 15000 else "err";                                                   // 持ち上げた後: まだ挟んでいるか
+          r = now d.go(b, "set 6 145 800") timeout 5000 else 0; wait(1300);                                    // grasp (wait a little after fully closing)
+          var h0 = now e.held(mode) timeout 15000 else "err";                                                  // right after closing: is it held?
+          r = now d.go(b, "pose " ++ base ++ " " ++ pre ++ " 90 145 2500") timeout 5000 else 0; wait(2750);  // rise slowly along the axis
+          r = now d.go(b, "pose " ++ base ++ " 80 50 50 90 145 3000") timeout 5000 else 0; wait(3250);       // lift slowly (P_TOP)
+          var h = now e.held(mode) timeout 15000 else "err";                                                   // after lifting: still held?
           if (h0 == "yes") { if (h != "yes") { print("  held when closed, dropped while lifting"); } }
           if (h == "yes") {
-            r = now d.go(b, "set 6 140 400") timeout 5000 else 0; wait(650);                                 // 挟めたら少し緩める（押し当てたままの電流を減らす）
+            r = now d.go(b, "set 6 140 400") timeout 5000 else 0; wait(650);                                 // once held, loosen slightly (reduces the current from pressing continuously)
             var at = 30;
             if (c == "green") { at = 150; print("  green -> right"); } else { print("  blue -> left"); }
-            r = now d.go(b, "pose " ++ at ++ " 80 50 50 90 140 2600") timeout 5000 else 0; wait(2850);       // 置き場へ回す
-            var y2 = now e.lower(mode, at ++ " 17 140") timeout 60000 else "err";                            // 置き場へ 0.5 cm ずつ降ろす
-            r = now d.go(b, "set 6 30 600") timeout 5000 else 0; wait(850);                                   // 放す
-            r = now d.go(b, "pose " ++ at ++ " 80 50 50 90 30 2000") timeout 5000 else 0; wait(2250);        // 上がる
+            r = now d.go(b, "pose " ++ at ++ " 80 50 50 90 140 2600") timeout 5000 else 0; wait(2850);       // swing to the drop-off spot
+            var y2 = now e.lower(mode, at ++ " 17 140") timeout 60000 else "err";                            // lower onto the drop-off spot in 0.5 cm steps
+            r = now d.go(b, "set 6 30 600") timeout 5000 else 0; wait(850);                                   // release
+            r = now d.go(b, "pose " ++ at ++ " 80 50 50 90 30 2000") timeout 5000 else 0; wait(2250);        // rise
             placed = placed + 1;
             misses = 0;
             if (c == "green") { need = "blue"; } else { need = "green"; }
@@ -112,7 +112,7 @@ class Planner {
       }
       }
     }
-    r = now d.go(b, "pose 90 90 90 90 90 30 3100") timeout 5000 else 0; wait(3350);                          // 直立に戻る
+    r = now d.go(b, "pose 90 90 90 90 90 30 3100") timeout 5000 else 0; wait(3350);                          // back to upright
     if (placed == 99) { print("  gave up after 30 tries"); reply(0); } else { if (placed >= 100) { reply(placed - 100); } else { reply(placed); } }
   }
 }

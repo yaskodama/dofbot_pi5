@@ -1,69 +1,69 @@
-# E0′ 実機の基礎性能 — 手順書 v1（2026-09-29、結果を見る前に凍結）
+# E0′ Baseline performance of the real robot — Protocol v1 (2026-09-29, frozen before seeing results)
 
-## 目的
-主実験（E1）の前に、条件を固定した反復で、色で振り分ける作業の完遂率・所要時間・判定の分布・腕の基板の停止を測る。
+## Purpose
+Before the main experiment (E1), measure the full-success rate, elapsed time, distribution of grasp checks, and arm-board stalls for the color-sorting task, using repeated trials under fixed conditions.
 
-## 凍結する条件
-- ソフトウェア: dofbot_pi5 （この手順書と同じコミット）、aice-avm 85da963 以降、Xinu `Sep 29 2026 09:57:23`（xinu-rpi5 3bc7bfb）
-- 振り付け: `aipl/sort_real.aipl`（`sort.aipl` の実機部分だけ。模型は流さない）
-- 指の閉じ 145、挟めた判定 読み戻し 120〜141、指先 卓上 1.2 cm、探索 2 列×4 か所（14〜23 cm、±45°）、探索の腕 2.5 s
-- 立方体 1 辺 3 cm（緑・青）。卓上は白い紙のみ（他の色の物を置かない）。置き場 土台 150°（右・緑）/ 30°（左・青）の 17 cm
-- 腕のアダプタ: 現行のもの（大容量の代替は無い）
+## Frozen conditions
+- Software: dofbot_pi5 (the same commit as this protocol), aice-avm 85da963 or later, Xinu `Sep 29 2026 09:57:23` (xinu-rpi5 3bc7bfb)
+- Choreography: `aipl/sort_real.aipl` (only the real-robot part of `sort.aipl`; the simulator model is not run)
+- Finger close 145, grasp check readback 120–141, fingertip 1.2 cm above the table, search 2 rows × 4 spots (14–23 cm, ±45°), search arm move 2.5 s
+- Cubes 3 cm on a side (green, blue). Only white paper on the table (no other colored objects). Drop zones at 17 cm, base 150° (right, green) / 30° (left, blue)
+- Arm power adapter: the current one (no higher-capacity replacement available)
 
-## 試行
-- 1 個: 20 回。置く位置 5 か所 × 色 2（緑・青）× 2 回。位置（土台の軸からの距離、正面からの向き。左 = 土台 < 90°）:
-  P1 17 cm 正面 / P2 15 cm 左 20° / P3 20 cm 右 20° / P4 17 cm 左 35° / P5 20 cm 右 35°
-  順番は下の表（事前に決めた）。
-- 2 個: 10 回。緑と青を次の組で置く（左右は正面から見て）:
-  Q1 緑 P3・青 P2 / Q2 緑 P2・青 P3 / Q3 緑 P5・青 P4 / Q4 緑 P4・青 P5 / Q5 緑 P1・青 P4 を各 2 回
-- 1 試行 = 立方体を置く → `sort_real.aipl` を 1 回流す（上限 30 試行）→ 置き場をカメラで確かめる → 立方体を戻す
+## Trials
+- 1 cube: 20 trials. 5 positions × 2 colors (green, blue) × 2 repetitions. Positions (distance from the base axis, direction from straight ahead; left = base < 90°):
+  P1 17 cm front / P2 15 cm left 20° / P3 20 cm right 20° / P4 17 cm left 35° / P5 20 cm right 35°
+  Order as in the table below (decided in advance).
+- 2 cubes: 10 trials. Green and blue placed in the following pairs (left/right as seen from the front):
+  Q1 green P3, blue P2 / Q2 green P2, blue P3 / Q3 green P5, blue P4 / Q4 green P4, blue P5 / Q5 green P1, blue P4, 2 times each
+- 1 trial = place the cube(s) → run `sort_real.aipl` once (at most 30 trials) → check the drop zones with the camera → put the cubes back
 
-## 記録（`data/e0prime/trials.jsonl`、1 行 1 試行）
-試行番号、条件（1 個/2 個、色と位置）、開始・終了時刻、置いた数（プログラムの報告）、置き場で見えた色（カメラ）、
-挟みの試行回数、指の読み戻し（閉じた直後・持ち上げ後）、腕の基板の停止の有無、操作者の介入。
+## Records (`data/e0prime/trials.jsonl`, one line per trial)
+Trial number, condition (1 or 2 cubes, colors and positions), start and end time, number placed (as reported by the program), colors seen at the drop zones (camera),
+number of grasp attempts, finger readback (right after closing, after lifting), whether the arm board stalled, operator intervention.
 
-## 成功の定義
-その試行で置いた全部の立方体が、正しい色の置き場にあること（カメラで確認し、目視と食い違えば目視を採る）。
+## Definition of success
+Every cube placed in the trial is in the drop zone of the correct color (checked with the camera; if it disagrees with visual inspection, visual inspection wins).
 
-## 合格条件（結果を見る前に決定、先生の承認 2026-09-29）
-1 個の完遂率 ≥ 0.8（20 回中 16 回以上）、2 個の完遂率 ≥ 0.7（10 回中 7 回以上）、30 回の間の基板の停止 ≤ 1 回。
-満たさなければ失敗を分類して一つだけ直し、同じ回数をもう一度行う。2 回目も満たさなければ撤退線へ。
+## Pass criteria (decided before seeing results, approved by Prof. Kodama 2026-09-29)
+1-cube full-success rate ≥ 0.8 (16 or more of 20), 2-cube full-success rate ≥ 0.7 (7 or more of 10), arm-board stalls ≤ 1 over the 30 trials.
+If not met, classify the failures, fix exactly one thing, and run the same number of trials again. If the second round also fails, go to the fallback (withdrawal) line.
 
-## 1 個の試行の順番（事前に決定）
-| 試行 | 色 | 位置 |
+## Order of the 1-cube trials (decided in advance)
+| Trial | Color | Position |
 |---|---|---|
-| 1 | 緑 | P1 | 
-| 2 | 青 | P2 |
-| 3 | 緑 | P3 |
-| 4 | 青 | P4 |
-| 5 | 緑 | P5 |
-| 6 | 青 | P1 |
-| 7 | 緑 | P2 |
-| 8 | 青 | P3 |
-| 9 | 緑 | P4 |
-| 10 | 青 | P5 |
-| 11〜20 | 1〜10 を繰り返す | |
+| 1 | green | P1 | 
+| 2 | blue | P2 |
+| 3 | green | P3 |
+| 4 | blue | P4 |
+| 5 | green | P5 |
+| 6 | blue | P1 |
+| 7 | green | P2 |
+| 8 | blue | P3 |
+| 9 | green | P4 |
+| 10 | blue | P5 |
+| 11–20 | repeat 1–10 | |
 
-## 凍結後の変更（試行 1 の前）
-- 2026-09-29 15:40: 板への HTTP を毎回 RST で切る（`locate.http_get`）。時間切れで閉じた接続が Xinu の HTTP を止めたため。
-  条件（振り付け・閾値・寸法）は変えていない。
-- 2026-09-29 15:55: `sort_real.aipl` の `var a` の宣言漏れを直した（試行 1 の 1 回目は読み込みで止まり、ロボットは動いていない。試行に数えない）。
-- 2026-09-29 16:25: 試行 2 は立方体を正面に置いたため無効（先生の指示でやり直す。基板の停止 1 回は数える）。
-  板への POST（アクターの載せ直し）も RST で切る。係が 30 秒ごとにアクターの応答を見て載せ直す。条件は変えていない。
-- 2026-09-29 16:40（試行 2 の後）: 実機の画像の時刻を「取り終えた時刻」から「板が写し取った時刻」に直した。
-  置き場の確認が左右逆に出た原因。探索・置き場確認の画像選びだけに関わり、振り付け・閾値・寸法は変えていない。
-- 2026-09-29 16:50（試行 3 の後）: 画像の縦横とも 85% 以上に広がる色の塊は立方体とみなさない（左の置き場の横の緑の本を緑と判定した）。
-  置き場の確認で左に「緑」と出たのはこの誤り（試行 3 の成否は右の置き場の緑で判定）。卓上から緑の本をどけてもらった。
-- 2026-09-29 17:10: 先生の指示で試行 5（失敗）を 5r としてやり直す（「机が滑った可能性」）。試行 5 は失敗のまま残し、
-  集計は「5 を失敗に数える」「5r に差し替える」の両方を報告する。以後、周りの原因で乱れた試行は成功・失敗を問わず同じ扱いにする。
-- 2026-09-29 19:20: 1 個の 20 回を終えた後、先生の指示で失敗した試行 7・12・18・20 を 7r・12r・18r・20r としてやり直す。
-  元の 20 回の結果（完遂 15/20、基板の停止 3 回）はそのまま報告し、やり直しに差し替えた集計は別に並べる。
-- 2026-09-29 20:05（やり直しの途中、先生の決定で 2 点を直す。手順書からの逸脱として記録）:
-  A. 青の判定の明るさ下限を 0.2 → 0.06（P2 の青は彩度 1.0・明るさ 0.1〜0.2 に写り、判定から外れていた。12・12r の原因）。
-  B. 挟めたと確かめたら指を 145 → 140 に緩めて運ぶ（押し当てたままの電流が基板の停止の原因という仮説。未検証）。
-  以後のやり直し（12r2・18r・20r）はこの条件。元の 20 回とは条件が異なることを集計に明記する。
-- 2026-09-29 21:20: 係はカメラの取り込みが 3 回続けて失敗したら 15 s 黙る（Mac の Wi-Fi のアドレスが変わるたびに板の HTTP が止まるため。条件は変えていない）。
-- 2026-09-29 22:00: 2 個の 10 回（試行 21〜30）は変更 A+B の条件で行う（先生の指示）。位置は腕で 1 か所ずつ指し示して置く。
-- 2026-09-29 22:20（試行 21 の後）: 詰める段で 14 cm を割ったら 14.1 cm にとどめて挟みに行く（あきらめない）。1 つ置いた後は、見つからないことが 2 回続いたら終える（1 回では終えない）。試行 21 はこの前の条件で失敗。
-- 2026-09-29 22:50（試行 24 の後）: 基板の停止 5 回がすべて「下ろす」処理（0.5 cm ずつ 0.6 s 間隔で 8 回前後の指令）の最中か直後だったため、下ろす処理を 1 回の指令（2 s）に変えた。以後の試行はこの条件。
-- 2026-09-29 23:00（試行 26 の後）: 挟む姿勢の手の傾きを 5° 刻み → 1° 刻みで探す（13.6〜14.2 cm に姿勢の抜けがあり、見つけた青を挟めないと判断した）。
+## Changes after freezing (before trial 1)
+- 2026-09-29 15:40: every HTTP connection to the board is closed with RST (`locate.http_get`), because connections closed on timeout were stalling Xinu's HTTP.
+  Conditions (choreography, thresholds, dimensions) unchanged.
+- 2026-09-29 15:55: fixed a missing declaration of `var a` in `sort_real.aipl` (the first run of trial 1 stopped at load time and the robot did not move; not counted as a trial).
+- 2026-09-29 16:25: trial 2 is invalid because the cube was placed straight ahead (redone on Prof. Kodama's instruction; the 1 arm-board stall is counted).
+  POSTs to the board (reloading the actor) are also closed with RST. A helper checks the actor's response every 30 s and reloads it. Conditions unchanged.
+- 2026-09-29 16:40 (after trial 2): the timestamp of real-robot images changed from "time the fetch finished" to "time the board captured the frame".
+  This was why the drop-zone check came out left/right reversed. It affects only image selection for search and drop-zone checks; choreography, thresholds and dimensions unchanged.
+- 2026-09-29 16:50 (after trial 3): a color blob spanning 85% or more of the image both vertically and horizontally is not treated as a cube (a green book beside the left drop zone was classified as green).
+  The "green" reported at the left drop zone in the drop-zone check was this error (trial 3 was judged by the green in the right drop zone). The green book was removed from the table.
+- 2026-09-29 17:10: on Prof. Kodama's instruction, trial 5 (failure) is redone as 5r ("the desk may have slid"). Trial 5 stays recorded as a failure,
+  and the totals are reported both ways: "count 5 as a failure" and "replace with 5r". From now on, any trial disturbed by external causes is treated the same way, whether it succeeded or failed.
+- 2026-09-29 19:20: after finishing the 20 one-cube trials, on Prof. Kodama's instruction the failed trials 7, 12, 18, 20 are redone as 7r, 12r, 18r, 20r.
+  The results of the original 20 trials (15/20 full success, 3 arm-board stalls) are reported as-is, and the totals with redos substituted are listed separately.
+- 2026-09-29 20:05 (during the redos, two fixes decided by Prof. Kodama; recorded as deviations from the protocol):
+  A. Lower brightness bound for blue classification 0.2 → 0.06 (blue at P2 appears with saturation 1.0 and value 0.1–0.2 and fell outside the classifier; the cause of 12 and 12r).
+  B. Once a grasp is confirmed, loosen the fingers from 145 → 140 while carrying (hypothesis: the current drawn while pressing is what stalls the arm board; unverified).
+  The subsequent redos (12r2, 18r, 20r) use these conditions. The totals state explicitly that the conditions differ from the original 20 trials.
+- 2026-09-29 21:20: the helper goes quiet for 15 s after 3 consecutive camera-fetch failures (the board's HTTP stalls every time the Mac's Wi-Fi address changes; conditions unchanged).
+- 2026-09-29 22:00: the 10 two-cube trials (trials 21–30) are run under conditions A+B (Prof. Kodama's instruction). Each position is indicated by pointing the arm at it, one at a time, and the cube is placed there.
+- 2026-09-29 22:20 (after trial 21): during the closing-in stage, if the distance drops below 14 cm, clamp it at 14.1 cm and still go for the grasp (do not give up). After placing one cube, finish only after two consecutive not-found results (not after one). Trial 21 failed under the earlier conditions.
+- 2026-09-29 22:50 (after trial 24): all 5 arm-board stalls happened during or right after the "lowering" step (about 8 commands of 0.5 cm each at 0.6 s intervals), so lowering was changed to a single command (2 s). Later trials use this condition.
+- 2026-09-29 23:00 (after trial 26): search the hand tilt of the grasp pose in 1° steps instead of 5° steps (there was a gap in reachable poses at 13.6–14.2 cm, so a blue cube that had been found was judged ungraspable).

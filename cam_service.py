@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
-# cam_service.py — カメラ係の Pi 5（Linux）で走る「Camera」節点。
+# cam_service.py — the "Camera" node running on the camera-duty Pi 5 (Linux).
 #
-# 1) AIPL の remote_call / gather と同じ電文（UDP/9010、ASCII 一行）を話す。
-#   Q <reqid> Camera find  <arg>   -> R <reqid> <n> <id> <cx> <cy> <deg> ...   （AprilTag 36h11。無ければ "0"）
-#   Q <reqid> Camera shot  <arg>   -> R <reqid> <path>                         （/tmp/cam_<reqid>.jpg に保存）
-#   Q <reqid> Camera mean  <arg>   -> R <reqid> <輝度平均>
-#   H <reqid>                      -> A <reqid>                                 （neighbors() への返事）
-#   それ以外は "err"。同じ (送り主, reqid) の再送には前の答えをそのまま返す。
-# 2) HTTP/8090 で最新フレームを配る（Xinu シミュレータの窓が <img> で常時表示する）。
-#   GET /snap.jpg   最新の JPEG        GET /find   タグ検出（テキスト、UDP の find と同じ）
+# 1) Speaks the same messages as AIPL remote_call / gather (UDP/9010, one ASCII line).
+#   Q <reqid> Camera find  <arg>   -> R <reqid> <n> <id> <cx> <cy> <deg> ...   (AprilTag 36h11; "0" if none)
+#   Q <reqid> Camera shot  <arg>   -> R <reqid> <path>                         (saved to /tmp/cam_<reqid>.jpg)
+#   Q <reqid> Camera mean  <arg>   -> R <reqid> <mean brightness>
+#   H <reqid>                      -> A <reqid>                                 (reply to neighbors())
+#   Anything else gets "err". A resend with the same (sender, reqid) gets the previous answer unchanged.
+# 2) Serves the latest frame over HTTP/8090 (the Xinu simulator window shows it continuously in an <img>).
+#   GET /snap.jpg   latest JPEG        GET /find   tag detection (text, same as UDP find)
 #
-# 撮影は一本の常駐スレッドが続け、UDP も HTTP も「最新フレーム」を読むだけ。
-# 起動: python3 cam_service.py [--dev /dev/video0] [--port 9010] [--http 8090]
+# A single resident thread keeps capturing; UDP and HTTP only read the "latest frame".
+# Start: python3 cam_service.py [--dev /dev/video0] [--port 9010] [--http 8090]
 import socket, sys, time, cv2, argparse, threading, math
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 

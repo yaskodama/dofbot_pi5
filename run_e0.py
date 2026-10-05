@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-# run_e0.py — E0′（実機の基礎性能）の 1 試行を流して記録する。手順書: ~/paper1_sim2real/protocol/E0prime_v1.md
-#   python3 run_e0.py <試行番号> <1|2> "<条件の説明>"
-# 1) sort_real.aipl を実機で 1 回流す 2) 左右の置き場をカメラで確かめる 3) 指の読み戻し・基板の状態を集め、1 行の JSON で記録する
+# run_e0.py — run one trial of E0′ (baseline performance of the real robot) and record it. Protocol: ~/paper1_sim2real/protocol/E0prime_v1.md
+#   python3 run_e0.py <trial number> <1|2> "<description of conditions>"
+# 1) run sort_real.aipl once on the real robot 2) check the left/right drop-off spots with the camera 3) collect finger readback and board state, record as one JSON line
 import sys, os, time, json, socket, subprocess, urllib.request, re
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import locate as L
@@ -37,7 +37,7 @@ def main():
     next_ver = time.time() + 30
     while time.time() - t0 < 1500:
         time.sleep(2)
-        if time.time() >= next_ver:          # 30 秒ごとに腕の基板が答えるか。止まっていたら打ち切る（空回りで時間を使わない）
+        if time.time() >= next_ver:          # every 30 s, check the arm board still answers; if it has stalled, abort (don't burn time spinning idle)
             next_ver = time.time() + 30
             if '0.-1' in L.arm_udp('ver', tries=2):
                 stopped_mid = True
@@ -46,7 +46,7 @@ def main():
         if '== done' in cur:
             done = True
             break
-        if '[Abort]' in cur or 'Type error' in cur:     # 読み込みで失敗した（ロボットは動いていない）
+        if '[Abort]' in cur or 'Type error' in cur:     # failed while loading (the robot did not move)
             break
     p.kill(); subprocess.run(['pkill', '-f', 'abclrepl_thread.*r_sort_real.repl'])
     t1 = time.time()
@@ -60,8 +60,8 @@ def main():
     if stopped_mid:
         right = left = 'skipped (board stopped)'
     else:
-        right = ask('Camera check real 150')          # 緑の置き場
-        left = ask('Camera check real 30')            # 青の置き場
+        right = ask('Camera check real 150')          # green drop-off spot
+        left = ask('Camera check real 30')            # blue drop-off spot
         L.move(90, [90, 90, 90], 2500, 30)
     ver1 = L.arm_udp('ver', tries=3)
     rec = {'trial': n, 'kind': kind, 'cond': cond, 't_start': round(t0, 1), 'minutes': round((t1 - t0) / 60, 2),

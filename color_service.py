@@ -1,47 +1,47 @@
 #!/usr/bin/env python3
-# color_service.py — Mac で走る「Camera」節点（色判定）。cam_service.py と同じ電文を話す。
+# color_service.py — "Camera" node running on the Mac (color classification). Speaks the same messages as cam_service.py.
 #
-#   Q <reqid> Camera color real s1 s2 s3 s4 -> R <reqid> green|blue|none   （Xinu 板の手首カメラ /cam から 1 枚取って判定）
-#   Q <reqid> Camera color sim  s1 s2 s3 s4 -> R <reqid> green|blue|none   （CG の手首カメラの画像を判定）
-#     s1..s4 は「見ている」ときの腕の姿勢（サーボ角）。
+#   Q <reqid> Camera color real s1 s2 s3 s4 -> R <reqid> green|blue|none   (grab one frame from the Xinu board's wrist camera /cam and classify)
+#   Q <reqid> Camera color sim  s1 s2 s3 s4 -> R <reqid> green|blue|none   (classify the CG wrist camera image)
+#     s1..s4 are the arm pose (servo angles) while "looking".
 #   Q <reqid> Camera locate sim|real [grip] [green|blue|any] -> R <reqid> green|blue|none
-#     grip: 探す間の指（既定 30=開）。色を指定するとその色だけを探す（1 つ置いたら残りの色だけ探すため）
-#     立方体を探す（locate.py）: 見る姿勢で撮る → 色の塊の重心を卓上へ逆射影 → カメラを向け直す、を収束まで。
-#     腕は color_service が動かす（sim: 127.0.0.1:8080/api/arm/sim、real: 板の /arm/pose）。
-#   Q <reqid> Camera lower <sim|real> here <grip> | <base> <r_cm> <grip> -> R <reqid> ok <指先の高さ cm>
-#     指先を卓上 5 cm から 0.5 cm ずつ下げ、各段で角度を読み戻す。関節が指令から 3° ずれたら卓に当たった
-#     とみなして 0.8 cm 上げて止める（実機）。模型は 2.3 cm まで。
-#   Q <reqid> Plan push <sim|real> <命令…>   -> R <reqid> <番号>     （これから実行する命令を PLAN に積む）
-#   Q <reqid> Plan done <番号> <結果…>        -> R <reqid> ok          （結果を書き戻す。ok… なら成功）
+#     grip: fingers during search (default 30=open). Given a color, search only for that color (so after placing one, only the remaining color is searched)
+#     Find a cube (locate.py): shoot in look pose -> back-project the color blob centroid onto the table -> re-aim the camera, until converged.
+#     color_service moves the arm (sim: 127.0.0.1:8080/api/arm/sim, real: the board's /arm/pose).
+#   Q <reqid> Camera lower <sim|real> here <grip> | <base> <r_cm> <grip> -> R <reqid> ok <fingertip height cm>
+#     Lower the fingertip from 5 cm above the table in 0.5 cm steps, reading back angles at each step. If a joint deviates 3° from the command, treat it
+#     as hitting the table, raise 0.8 cm and stop (real robot). Sim model goes down to 2.3 cm.
+#   Q <reqid> Plan push <sim|real> <command…>   -> R <reqid> <number>     (push the command about to run onto PLAN)
+#   Q <reqid> Plan done <number> <result…>        -> R <reqid> ok          (write back the result; ok… means success)
 #   Q <reqid> Plan reset                      -> R <reqid> ok
-#     PLAN は Xinu シミュレータの CG に重ねて表示される（GET /plan）。locate / lower の腕の動きも自分で積む。
-#     窓のボタン・スライダーから送った命令も HTTP で積む（GET /plan/push?where=&cmd=, /plan/done?i=&r=, /plan/reset）。
-#   Q <reqid> Camera held <sim|real>          -> R <reqid> yes | no   （挟めているか: 指の読み戻し。角度は PLAN に出る）
-#   Q <reqid> Camera get <sim|real> base|look|pre|grasp|where -> R <reqid> "84" / "91 4 1" …（直前の locate の結果）
+#     PLAN is overlaid on the Xinu simulator CG (GET /plan). locate / lower push their own arm moves too.
+#     Commands sent from the window's buttons/sliders are also pushed over HTTP (GET /plan/push?where=&cmd=, /plan/done?i=&r=, /plan/reset).
+#   Q <reqid> Camera held <sim|real>          -> R <reqid> yes | no   (is it gripped: finger readback; angle shows in PLAN)
+#   Q <reqid> Camera get <sim|real> base|look|pre|grasp|where -> R <reqid> "84" / "91 4 1" … (result of the previous locate)
 #   H <reqid>                    -> A <reqid>
-#   同じ (送り主, reqid) の再送には前の答えを返す。判定中の再送には答えない（remote_call がまた送ってくる）。
+#   A resend with the same (sender, reqid) gets the previous answer. Resends during classification are not answered (remote_call will send again).
 #
-# ★ カメラは指より上（手首リンクの上面、指の軸から 3.2 cm）に付いていて、指の間は映らない。
-#   だから sort.aipl は、腕をずらしてカメラの軸を立方体に向けて撮り、そのあと指の軸を立方体に合わせて挟む。
-#   判定は、姿勢から順運動学でカメラの位置と向きを出し、
-#   立方体（土台の前 17 cm、卓上の 3.5 cm 立方体）が画像のどこに写るかを射影して、
-#   その枠（ROI）の中だけで判定する。CG のカメラも同じ幾何・同じ画角で描いている。
-#   Xinu のカメラ画像は回っていない（土台と腕を動かして立方体の写る向きを実測、2026-09-27）。
-#   Linux で撮ったときは 180° 回っていた。そのときは --rot180。
+# ★ The camera sits above the fingers (top face of the wrist link, 3.2 cm from the finger axis) and cannot see between the fingers.
+#   So sort.aipl shifts the arm to aim the camera axis at the cube and shoots, then aligns the finger axis with the cube and grips.
+#   Classification computes camera position and direction from the pose by forward kinematics,
+#   projects where the cube (17 cm in front of the base, a 3.5 cm cube on the table) appears in the image,
+#   and classifies only inside that box (ROI). The CG camera is drawn with the same geometry and FOV.
+#   The Xinu camera image is not rotated (measured by moving base and arm and watching the cube's direction, 2026-09-27).
+#   Shots taken under Linux were rotated 180°; use --rot180 for those.
 #
-# 判定（real も sim も同じ関数）: ROI の画素を HSV にし、彩度と明度が足りる画素のうち
-#   色相 75–165° を緑、190–260° を青として数える。多い方が ROI の 30% 以上なら その色、無ければ none
-#   （細いケーブルや縁の色では反応しない）。
+# Classification (same function for real and sim): convert ROI pixels to HSV; among pixels with enough saturation and value,
+#   count hue 75–165° as green and 190–260° as blue. If the larger count is >= 30% of the ROI, that color, else none
+#   (doesn't react to thin cables or edge colors).
 #
-# HTTP（既定 8091、CORS 可）:
-#   POST /simframe?w=80&h=60   本文 = RGB 各 1 バイトの生画素。Xinu シミュレータの DOFBOT 窓が CG カメラの画像を送る
-#   POST /realframe?w=160&h=120 同じ形式。窓が板から受け取った実機カメラの画像を送る（2 秒以内なら板に聞かない）
-#   GET  /sim?c=green|blue     CG の立方体の色を決めて置き直させる（窓が /stat の cube を見て従う）
-#   GET  /stat                 直近の判定（JSON）。シミュレータの「色の認識率」バーが読む
-#   GET  /geo, POST /geo       寸法（geometry.json）。シミュレータの CG と寸法線、ここの逆運動学・逆射影が同じ値を使う
-#   GET  /last                 直近の判定（1 行）
+# HTTP (default 8091, CORS enabled):
+#   POST /simframe?w=80&h=60   body = raw RGB pixels, 1 byte each. The Xinu simulator's DOFBOT window sends the CG camera image
+#   POST /realframe?w=160&h=120 same format. The window sends the real camera image it got from the board (if within 2 s, the board isn't asked)
+#   GET  /sim?c=green|blue     set the CG cube color and have it re-placed (the window follows cube in /stat)
+#   GET  /stat                 latest classification (JSON). Read by the simulator's "color recognition rate" bar
+#   GET  /geo, POST /geo       dimensions (geometry.json). Simulator CG and dimension lines, and the IK/back-projection here, share these values
+#   GET  /last                 latest classification (one line)
 #
-# 起動: python3 color_service.py [--board 192.168.3.101] [--port 9012] [--http 8091]
+# Start: python3 color_service.py [--board 192.168.3.101] [--port 9012] [--http 8091]
 import socket, time, argparse, threading, colorsys, urllib.request, urllib.parse, json, math, os, sys, collections
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import locate as loc
@@ -55,15 +55,15 @@ ap.add_argument('--rot180', action='store_true', help='the real image is rotated
 a = ap.parse_args()
 
 lock = threading.Lock()
-RING = collections.deque(maxlen=40)          # 最近の画像 (時刻, 'real'|'sim', (w,h,px), 模型の関節角 or None)。移動中の「ちらっと」用
+RING = collections.deque(maxlen=40)          # recent images (time, 'real'|'sim', (w,h,px), sim-model joint angles or None). For "glimpses" during moves
 state = {'last': '-', 'simframe': None, 'simframe_t': 0.0, 'realframe': None, 'realframe_t': 0.0,
          'cube': {'color': 'green', 'seq': 0},
          'stat': {'seq': 0, 'mode': '-', 'answer': '-', 'green': 0, 'blue': 0, 'need': 30, 'max_v': 0, 'why': '', 'roi': None}}
 
 
-# ---- 幾何: 腕とカメラの寸法は geometry.json（locate.py が読む。xinu.js の CG も /geo で同じ値を使う） ----
-CUBE_X = 0.17                            # 立方体を置く所: 土台の軸から前へ 17 cm（xinu.js の CUBE.x と同じ）
-NEED = 30                                # ROI の何 % が同じ色なら その色とするか
+# ---- Geometry: arm and camera dimensions are in geometry.json (read by locate.py; xinu.js CG uses the same values via /geo) ----
+CUBE_X = 0.17                            # where the cube is placed: 17 cm forward of the base axis (same as CUBE.x in xinu.js)
+NEED = 30                                # what % of the ROI must be one color to call it that color
 
 
 def fk(s):
@@ -83,9 +83,9 @@ def unit(v): n = math.sqrt(dot(v, v)); return tuple(x / n for x in v)
 
 
 def roi_for(pose, W, H, rot180):
-    """掴む所の立方体が、姿勢 pose のカメラ画像（W x H）で占める枠 (u0, v0, u1, v1)。写らなければ None"""
-    cube = (CUBE_X, loc.CUBE / 2, 0.0)                         # 置く所は土台 90° の前方
-    k = fk(pose); n3 = unit(cross(k['l'], k['d3']))          # カメラの「上」= 手首の上面の向き
+    """Box (u0, v0, u1, v1) that the cube at the grasp spot occupies in the camera image (W x H) for pose. None if not visible"""
+    cube = (CUBE_X, loc.CUBE / 2, 0.0)                         # placement spot is straight ahead of base at 90°
+    k = fk(pose); n3 = unit(cross(k['l'], k['d3']))          # camera "up" = direction of the wrist top face
     c = tuple(k['P3'][i] + k['d3'][i] * loc.CAM_ALONG + n3[i] * loc.CAM_UP for i in range(3))
     f = (W / 2) / math.tan(math.radians(loc.FOV / 2))
     us, vs = [], []
@@ -103,15 +103,15 @@ def roi_for(pose, W, H, rot180):
     return (u0, v0, u1, v1) if u1 - u0 >= 2 and v1 - v0 >= 2 else None
 
 
-HTTP_LOCK = threading.Lock()                 # 板の HTTP は一度に 1 件。係からの問い合わせを 1 本の列に並べる
-loc.HTTP_LOCK = HTTP_LOCK                    # locate.py（予備の取り込み・アクターの載せ直し）も同じ列
+HTTP_LOCK = threading.Lock()                 # the board's HTTP handles one at a time; queue requests from the nodes into a single line
+loc.HTTP_LOCK = HTTP_LOCK                    # locate.py (fallback capture, actor reload) uses the same queue
 
 
 def get(url, tries=6):
-    for _ in range(tries):             # 板の HTTP は一度に 1 本。空や時間切れがあるので取り直す
+    for _ in range(tries):             # board HTTP is one at a time; empty replies and timeouts happen, so retry
         try:
-            with HTTP_LOCK:            # 同時に 2 本出すと板の受け付けが追いつかず、HTTP 全体が止まった（2026-09-29）
-                b = loc.http_get(url, 5)   # 終わったら必ず RST で切る（時間切れの接続が板の HTTP を止めた）
+            with HTTP_LOCK:            # issuing 2 at once overwhelmed the board's accept and stopped all HTTP (2026-09-29)
+                b = loc.http_get(url, 5)   # always close with RST when done (timed-out connections stalled the board's HTTP)
             if b:
                 return b
         except Exception:
@@ -121,28 +121,28 @@ def get(url, tries=6):
 
 
 def grab_real():
-    """実機の 1 枚。シミュレータの窓が板から受け取って送ってくる画像（/realframe）が新しければそれを使う
-    （板の HTTP は一度に 1 本なので、窓と取り合わない）。無ければ板から 80x60 を直接取る"""
-    # 問い合わせより後に届いた 1 枚を待つ（腕が止まる前の古い 1 枚で判定しない）
+    """One real-robot frame. Use the image the simulator window got from the board and sent us (/realframe) if it is fresh
+    (board HTTP is one at a time, so don't compete with the window). Otherwise fetch 80x60 straight from the board"""
+    # wait for a frame that arrived after the request (don't classify an old frame from before the arm stopped)
     asked, fresh = time.time(), False
     while time.time() - asked < 5:
         with lock:
             f, t = state['realframe'], state['realframe_t']
         if f is not None and t >= asked + 0.3:
             return f, ''
-        fresh = fresh or (f is not None and time.time() - t < 2)     # 窓は開いている
+        fresh = fresh or (f is not None and time.time() - t < 2)     # the window is open
         if not fresh and time.time() - asked > 1:
-            break                                                    # 窓が無い → 板に直接聞く
+            break                                                    # no window -> ask the board directly
         time.sleep(0.05)
     return grab_board()
 
 
 def fetch_board_frame(W=160):
-    """板の /cam から 1 枚（待たない）。off=0 で写し取らせてから続きを取る。→ (w, h, [(r,g,b) 0..1]) か None"""
+    """One frame from the board's /cam (no waiting). off=0 makes it capture, then fetch the rest. -> (w, h, [(r,g,b) 0..1]) or None"""
     base = 'http://%s' % a.board
-    t_cap = time.time()                              # 板が 1 枚を写し取る（off=0）のはこの頃
+    t_cap = time.time()                              # the board captures the frame (off=0) around now
     hdr = get('%s/cam?w=%d&t=%d' % (base, W, time.time() * 1000), tries=2).decode('ascii', 'ignore').split()
-    if len(hdr) >= 6 and hdr[5] == 'idle':           # 板の再起動後はカメラが止まっている → 配信を始めさせる
+    if len(hdr) >= 6 and hdr[5] == 'idle':           # after a board reboot the camera is stopped -> make it start streaming
         get('%s/cam/start?frame=3&fps=10' % base, tries=1)
         return None
     if len(hdr) < 6 or hdr[5] != 'streaming':
@@ -164,8 +164,8 @@ def fetch_board_frame(W=160):
 
 
 def glimpses_between(kind, t0, t1, prev, target, ms):
-    """腕が prev から target へ（ms かけて）動いている間 [t0, t1] に取れた画像と、そのときの姿勢。
-    模型は画像に添えた実際の関節角、実機は時刻で按分した見積もり"""
+    """Images captured during [t0, t1] while the arm moved from prev to target (over ms), and the pose at that time.
+    Sim model: actual joint angles attached to the image; real robot: estimate interpolated by time"""
     out = []
     with lock:
         frames = [f for f in RING if f[1] == kind and t0 < f[0] < t1]
@@ -180,13 +180,13 @@ def glimpses_between(kind, t0, t1, prev, target, ms):
 
 
 def cam_loop():
-    """板のカメラを取り込み続ける（板へつなぐのはこの 1 本だけ）。
-    以前はシミュレータの窓（Chrome）が板の :80 へ直接取りに行き、Chrome が要求なしの接続を張ったまま
-    Xinu の単一スレッド HTTP を止めることが繰り返し起きた。窓は /realframe.bin をここから読む。"""
+    """Keep capturing the board camera (this is the only connection to the board).
+    Previously the simulator window (Chrome) fetched from the board's :80 directly, and Chrome repeatedly held open request-less connections
+    that stalled Xinu's single-threaded HTTP. The window now reads /realframe.bin from here."""
     next_check = 0
     fails = 0
     while True:
-        if time.time() >= next_check:            # 30 秒ごとに腕のアクターが答えるか見て、答えなければ載せ直す（板の再起動後など）
+        if time.time() >= next_check:            # every 30 s check the arm actor answers; reload it if not (e.g. after a board reboot)
             next_check = time.time() + 30
             try:
                 v = loc.arm_udp('ver', tries=2)
@@ -200,20 +200,20 @@ def cam_loop():
         except Exception:
             f = None
         if f:
-            # 時刻は板が写し取った時刻（取り込み開始）。取り終えた時刻にすると、腕が動く前・途中の画像を
-            # 「着いた後の画像」として使い、置き場の確認や位置の計算を取り違えた（2026-09-29）
+            # Timestamp = when the board captured (start of fetch). Using the fetch-end time treated images from before/during the arm move
+            # as "after arrival" and confused the drop-off check and position calculation (2026-09-29)
             with lock:
                 state['realframe'], state['realframe_t'] = f[:3], f[3]
         fails = 0 if f else fails + 1
-        if fails >= 3:                              # 続けて失敗したら 15 s 黙る（問い合わせ続けると板の HTTP が戻らない）
+        if fails >= 3:                              # after consecutive failures stay quiet for 15 s (continued requests keep the board's HTTP from recovering)
             print('  board HTTP not answering — back off 15 s', flush=True)
             time.sleep(15); fails = 0
         else:
-            time.sleep(0.8 if f else 3.0)            # 0.3 s では板の HTTP を詰まらせた
+            time.sleep(0.8 if f else 3.0)            # 0.3 s clogged the board's HTTP
 
 
 def grab_board():
-    """Xinu 板から 80x60 を 1 枚。RGB565 小端 → (w, h, [(r,g,b) 0..1])"""
+    """One 80x60 frame from the Xinu board. RGB565 little-endian -> (w, h, [(r,g,b) 0..1])"""
     base, W = 'http://%s' % a.board, 80
     hdr = get('%s/cam?w=%d&t=%d' % (base, W, time.time() * 1000)).decode('ascii', 'ignore').split()
     if len(hdr) < 6 or hdr[5] != 'streaming':
@@ -257,7 +257,7 @@ def classify(img, roi):
             deg = h * 360
             if 75 <= deg <= 165 and s >= 0.5:
                 green += 1
-            elif 190 <= deg <= 260 and s >= 0.8:             # 水色のシート（彩度 0.3〜0.7）を青と数えない
+            elif 190 <= deg <= 260 and s >= 0.8:             # don't count the light-blue sheet (saturation 0.3-0.7) as blue
                 blue += 1
     ans = 'none'
     if max(green, blue) * 100 >= NEED * n:
@@ -265,14 +265,14 @@ def classify(img, roi):
     return ans, 100.0 * green / n, 100.0 * blue / n, vmax
 
 
-# ---- PLAN: 実行する命令の列（sort.aipl の Dancer.go と、locate / lower の腕の動き） ----
+# ---- PLAN: queue of commands being executed (Dancer.go in sort.aipl, and the arm moves of locate / lower) ----
 def plan_push(where, cmd, depth=0):
     with lock:
         pl = state.setdefault('plan', {'seq': 0, 'items': []})
         pl['seq'] += 1
         for it in pl['items']:
             if it['state'] == 'run' and it['depth'] >= depth:
-                it['state'] = 'ok?'                 # 答えを書き戻さずに次へ進んだもの
+                it['state'] = 'ok?'                 # moved on to the next without writing back an answer
         pl['items'].append({'i': pl['seq'], 'where': where, 'cmd': cmd, 'state': 'run', 'result': '', 'depth': depth, 't': time.time()})
         del pl['items'][:-200]
         return pl['seq']
@@ -283,7 +283,7 @@ def plan_done(i, result):
         for it in state.get('plan', {}).get('items', []):
             if it['i'] == i:
                 it['state'] = ('ok' if result.startswith(('ok', 'angles', 'green', 'blue'))
-                               else 'none' if result.strip() == 'none' else 'fail')   # none: 見つからない（確かめでは「挟めた」）
+                               else 'none' if result.strip() == 'none' else 'fail')   # none: not found (in a check, means "gripped")
                 it['result'] = result[:60]
                 it['dt'] = round(time.time() - it['t'], 2)
                 return 'ok'
@@ -308,7 +308,7 @@ def plan_msg(meth, arg):
 
 
 def fresh_frame(which, after, wait=6):
-    """時刻 after より後に届いた 1 枚（窓が送る simframe / realframe）"""
+    """One frame (simframe / realframe sent by the window) that arrived after time after"""
     t0 = time.time()
     while time.time() - t0 < wait:
         with lock:
@@ -320,7 +320,7 @@ def fresh_frame(which, after, wait=6):
 
 
 def do_locate(mode, grip=30, want=None):
-    """grip: 探す間の指（30 開 / 135 閉）。持ち上げたあとの確かめでは閉じたまま動かす（開くと落とす）"""
+    """grip: fingers while searching (30 open / 135 closed). In the post-lift check, move with them closed (opening drops the cube)"""
     if mode == 'sim':
         goal = {}
         def move_fn(s1, s):
@@ -329,7 +329,7 @@ def do_locate(mode, grip=30, want=None):
             goal['a'] = [s1] + list(s)
             time.sleep(2.8); plan_done(k, 'ok')
         def shoot_fn():
-            # 模型がその姿勢に着いてから撮った画像だけを使う（窓が隠れて模型が止まっていると古い画像が届く）
+            # use only images shot after the sim model reached that pose (if the window is hidden the model stops and stale images arrive)
             t0 = time.time()
             while time.time() - t0 < 8:
                 f = fresh_frame('simframe', time.time() + 0.1, wait=2)
@@ -342,7 +342,7 @@ def do_locate(mode, grip=30, want=None):
         def move_fn(s1, s):
             k = plan_push('real', 'pose %d %d %d %d 90 %d 2500  (look)' % (s1, s[0], s[1], s[2], grip), 1)
             try:
-                loc.move(s1, s, 2500, grip); time.sleep(2.8); loc.check_pose(s1, s)   # ゆっくり（1.5 s では振りが速すぎた）
+                loc.move(s1, s, 2500, grip); time.sleep(2.8); loc.check_pose(s1, s)   # slowly (1.5 s swung too fast)
             except Exception as ex:
                 plan_done(k, 'FAIL %s' % ex); raise
             plan_done(k, 'ok')
@@ -353,11 +353,11 @@ def do_locate(mode, grip=30, want=None):
     try:
         res = loc.locate(move_fn, shoot_fn, rot180=(mode == 'real' and a.rot180), log=lines.append, want=want,
                          glimpse_fn=lambda t0, t1, prev, target: glimpses_between(mode, t0, t1, prev, target, 2500))
-    except Exception as ex:                                  # 腕が動かなかった等
+    except Exception as ex:                                  # e.g. the arm didn't move
         lines.append('locate stopped: %s' % ex); res = None
     for ln in lines:
         print('  locate(%s) %s' % (mode, ln), flush=True)
-    if res and mode == 'real':                   # 実機は計算より 1° 左を掴みに行く → 土台を補正（geometry.json）
+    if res and mode == 'real':                   # the real robot grips 1° left of the computed spot -> correct the base (geometry.json)
         g = state.get('geo') or {}
         res['base'] = int(round(res['base'] + float(g.get('real_base_offset', {}).get('v', 0))))
     with lock:
@@ -365,13 +365,13 @@ def do_locate(mode, grip=30, want=None):
     if not res:
         put_stat(mode, 'none', 0, 0, 0, (lines[-1] if lines else 'locate failed'))
         return 'none'
-    # 認識率バー: 最後の 1 枚で、立方体が写っている枠（重心のまわり、立方体の大きさ）を判定する
+    # recognition bar: classify, in the last frame, the box where the cube appears (around the centroid, cube-sized)
     img = shoot_fn()
     if img:
         W, H, px = img
         f = (W / 2) / math.tan(math.radians(loc.FOV / 2))
         half = f * loc.CUBE / 2 / 0.12
-        b = loc.blob(px, W, H, mode == 'real' and a.rot180, res['color'])   # 見つけた立方体の色だけ（隣の立方体を混ぜない）
+        b = loc.blob(px, W, H, mode == 'real' and a.rot180, res['color'])   # only the found cube's color (don't mix in a neighboring cube)
         if b:
             u, v = b[0], b[1]
             roi = (max(0, int(u - half)), max(0, int(v - half)), min(W, int(u + half)), min(H, int(v + half)))
@@ -384,9 +384,9 @@ def do_locate(mode, grip=30, want=None):
 
 
 def do_lower(arg):
-    """lower <sim|real> here <grip>          … locate で見つけた立方体の所へ段階的に降ろす
-       lower <sim|real> <base> <r_cm> <grip>  … 置き場へ段階的に降ろす
-       答え: "ok <止まった指先の高さ cm>" / "err ..."
+    """lower <sim|real> here <grip>          … lower stepwise onto the cube found by locate
+          lower <sim|real> <base> <r_cm> <grip>  … lower stepwise onto a drop-off spot
+          Answer: "ok <fingertip height where stopped, cm>" / "err ..."
     """
     w = arg.split()
     mode = w[0] if w else 'real'
@@ -415,7 +415,7 @@ def do_lower(arg):
             except Exception as ex:
                 plan_done(k, 'FAIL %s' % ex); raise
             plan_done(k, 'ok')
-        angles_fn = None     # 卓に当たると本体が浮くだけで角度は指令どおり → 読み戻しでは検出できない。読むと基板リセットを招く
+        angles_fn = None     # hitting the table only lifts the body; angles stay as commanded -> undetectable by readback. Reading invites an arm-board reset
     lines = []
     try:
         y = loc.lower(move_fn, angles_fn, s1, r, grip, log=lines.append)
@@ -423,12 +423,12 @@ def do_lower(arg):
         lines.append('lower stopped: %s' % ex); y = None
     for ln in lines:
         print('  lower(%s) %s' % (mode, ln), flush=True)
-    return 'ok %.1f' % (y * 100) if y is not None else 'err'     # 理由は上の print（AIPL は "err" と比べる）
+    return 'ok %.1f' % (y * 100) if y is not None else 'err'     # reason is in the print above (AIPL compares against "err")
 
 
 def do_held(mode):
-    """挟めているか。実機: 135 で閉じた指（サーボ6）の読み戻しが held_max 以下なら物に当たって止まっている。
-    模型: CG の立方体が手に付いているか（窓が送る cube_at.held）"""
+    """Is it gripped? Real robot: if the readback of the fingers (servo 6) closed at 135 is <= held_max, they stopped against an object.
+    Sim model: whether the CG cube is attached to the hand (cube_at.held sent by the window)"""
     if mode == 'sim':
         with lock:
             ca = state.get('cube_at') or {}
@@ -436,7 +436,7 @@ def do_held(mode):
     g = state.get('geo') or {}
     lim = float(g.get('held_max', {}).get('v', 141))
     a6 = []
-    time.sleep(0.8)                              # 腕が止まってから読む（読めない読みを重ねると基板リセットを招く）
+    time.sleep(0.8)                              # read after the arm stops (piling up failed reads invites an arm-board reset)
     ang = loc.read_angles()
     if ang and ang[5] >= 0:
         a6.append(ang[5])
@@ -447,14 +447,14 @@ def do_held(mode):
     state['held_v'] = v
     with lock:
         state.setdefault('held_hist', []).append((time.time(), v))
-    # 閉じ切れずに止まったら「挟めた」。指令 145 で空なら 144〜145、3 cm の立方体を挟むと指がたわんで 139（2026-09-29 実測）。
-    # 以前の 125〜134（無負荷の指の開きから決めた）では挟めているのに「挟めていない」とし、振り付けが指を開いて落としていた。
-    # 開いた指（例: 40）は数えない
+    # If the fingers stop short of fully closed, it's "gripped". Commanded 145 with nothing reads 144-145; gripping a 3 cm cube flexes the fingers to 139 (measured 2026-09-29).
+    # The old 125-134 (set from unloaded finger opening) said "not gripped" while gripped, and the choreography opened the fingers and dropped it.
+    # Open fingers (e.g. 40) are not counted
     return 'yes' if 120 <= v <= lim else 'no'
 
 
 def do_check(arg):
-    """check <sim|real> <base>: 置き場（土台 base、17 cm）を撮って、そこにある立方体の色（green|blue|none）"""
+    """check <sim|real> <base>: shoot the drop-off spot (base angle base, 17 cm) and return the color of the cube there (green|blue|none)"""
     w = arg.split()
     mode = w[0] if w else 'real'
     try:
@@ -551,7 +551,7 @@ class Hd(BaseHTTPRequestHandler):
     def do_POST(self):
         p, _, q = self.path.partition('?')
         body = self.rfile.read(int(self.headers.get('Content-Length', '0')))
-        if p == '/geo':                                     # シミュレータの「寸法」から保存
+        if p == '/geo':                                     # saved from the simulator's "dimensions" panel
             try:
                 g = json.loads(body.decode('utf-8'))
                 with open(loc.GEO_FILE, 'w') as fh:
@@ -571,13 +571,13 @@ class Hd(BaseHTTPRequestHandler):
                 which = p[1:]
                 with lock:
                     state[which], state[which + '_t'] = (w, h, px), time.time()
-                    if which == 'simframe' and 'a' in kv:         # この画像を撮ったときの模型の関節角
+                    if which == 'simframe' and 'a' in kv:         # sim-model joint angles when this image was shot
                         try:
                             state['simframe_a'] = [int(v) for v in kv['a'].split(',')]
                         except ValueError:
                             state['simframe_a'] = None
                         RING.append((time.time(), 'sim', (w, h, px), state['simframe_a']))
-                    if which == 'simframe' and 'cx' in kv:        # CG の立方体がいまどこにあるか（掴まれているか）
+                    if which == 'simframe' and 'cx' in kv:        # where the CG cube is now (whether it's gripped)
                         state['cube_at'] = {k2: float(kv[k2]) for k2 in ('cx', 'cy', 'cz', 'held') if k2 in kv}
             self._send('ok\n')
         else:
@@ -588,11 +588,11 @@ class Hd(BaseHTTPRequestHandler):
         if p == '/sim':
             c = dict(x.split('=', 1) for x in q.split('&') if '=' in x).get('c', '')
             with lock:
-                if c in ('green', 'blue', 'both'):          # both: 緑と青を並べて置く
+                if c in ('green', 'blue', 'both'):          # both: place green and blue side by side
                     state['cube'] = {'color': c, 'seq': state['cube']['seq'] + 1}
                 cube = dict(state['cube'])
             self._send('CG cube = %s (placed again, #%d)\n' % (cube['color'], cube['seq']))
-        elif p in ('/plan/push', '/plan/done', '/plan/reset'):   # Xinu シミュレータの窓から送った命令も同じ PLAN に積む
+        elif p in ('/plan/push', '/plan/done', '/plan/reset'):   # commands sent from the Xinu simulator window go into the same PLAN
             kv = {}
             for x in q.split('&'):
                 if '=' in x:
@@ -611,7 +611,7 @@ class Hd(BaseHTTPRequestHandler):
                 pl = state.get('plan', {'seq': 0, 'items': []})
                 body = json.dumps({'seq': pl['seq'], 'items': pl['items'][-40:]}, ensure_ascii=False)
             self._send(body, 'application/json; charset=utf-8')
-        elif p == '/realframe.bin':                     # 実機カメラの最新 1 枚（RGB 各 1 バイト）。窓が描く
+        elif p == '/realframe.bin':                     # latest real camera frame (raw RGB, 1 byte each). Drawn by the window
             with lock:
                 f, t = state['realframe'], state['realframe_t']
             if not f:
@@ -627,7 +627,7 @@ class Hd(BaseHTTPRequestHandler):
             self.send_header('X-W', str(w)); self.send_header('X-H', str(h)); self.send_header('X-Age', '%.2f' % (time.time() - t))
             self.end_headers()
             self.wfile.write(body)
-        elif p == '/held':                               # 挟めた判定の読み戻しの履歴（since= 以降）
+        elif p == '/held':                               # readback history of the grip check (since= onward)
             kv = dict(x.split('=', 1) for x in q.split('&') if '=' in x)
             since = float(kv.get('since', '0'))
             with lock:
@@ -669,7 +669,7 @@ def serve(key, addr, reqid, actor, meth, arg):
     elif meth == 'locate':
         k = plan_push(w[0] if w else 'real', 'locate ' + ' '.join(w[1:]))
         ans = do_locate('sim' if w and w[0] == 'sim' else 'real', int(w[1]) if len(w) > 1 and w[1].isdigit() else 30,
-                        w[2] if len(w) > 2 and w[2] in ('green', 'blue') else None)   # 探す色（無ければ多いほう）
+                        w[2] if len(w) > 2 and w[2] in ('green', 'blue') else None)   # color to search (if absent, whichever has more)
         plan_done(k, ans)
     elif meth == 'lower':
         k = plan_push(w[0] if w else 'real', 'lower ' + ' '.join(w[1:]))
@@ -711,7 +711,7 @@ while True:
         if key in memo:
             s.sendto(('R %s %s\n' % (reqid, memo[key])).encode(), addr)
             continue
-        if key in busy:                 # 判定中の再送
+        if key in busy:                 # resend during classification
             continue
         busy.add(key)
     threading.Thread(target=serve, args=(key, addr, reqid, actor, meth, arg), daemon=True).start()
