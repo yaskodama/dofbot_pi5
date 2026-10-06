@@ -1,5 +1,5 @@
 #!/bin/bash
-# one_cube の手順を、aice-avm 内蔵の模型へ流す（:8080 の腕窓に映る）
+# Send the one_cube steps to the sim model built into aice-avm (shown in the arm window on :8080)
 B="http://localhost:8080/api/arm/sim"
 run(){ printf "  %-32s -> " "$1"; curl -s -G --max-time 8 "$B" --data-urlencode "cmd=$1" | head -1; }
 echo "[1] 原点へ";            run "pose 90 90 90 90 90 30 1500"; sleep 1.8

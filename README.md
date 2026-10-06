@@ -1,28 +1,28 @@
 # dofbot_pi5
 
-日本語 | [English](README.en.md)
+English | [日本語](README.ja.md)
 
-Yahboom DOFBOT（6 軸、Raspberry Pi 5 版）を **Embedded Xinu + AIPL** で動かすための Mac 側の道具と振り付け。
-Xinu 側（I²C の腕ドライバ、UVC カメラ）は [xinu-rpi5](https://github.com/yaskodama/xinu-rpi5)、
-シミュレータ（CG の腕・立方体・手首カメラ、PLAN 表示）は [aice-avm](https://github.com/yaskodama/aice-avm) にある。
+Mac-side tools and choreography for running the Yahboom DOFBOT (6-axis, Raspberry Pi 5 edition) on **Embedded Xinu + AIPL**.
+The Xinu side (I²C arm driver, UVC camera) lives in [xinu-rpi5](https://github.com/yaskodama/xinu-rpi5),
+and the simulator (CG arm, cubes, wrist camera, PLAN overlay) lives in [aice-avm](https://github.com/yaskodama/aice-avm).
 
-## 動画
+## Video
 
-[![2026年9月14日（YouTube）](https://img.youtube.com/vi/MSeznEtUzes/hqdefault.jpg)](https://www.youtube.com/watch?v=MSeznEtUzes)
+[![September 14, 2026 (YouTube)](https://img.youtube.com/vi/MSeznEtUzes/hqdefault.jpg)](https://www.youtube.com/watch?v=MSeznEtUzes)
 
 https://www.youtube.com/watch?v=MSeznEtUzes
 
-## ファイル
+## Files
 
-| ファイル | 中身 |
+| File | Contents |
 |---|---|
-| `aipl/sort.aipl` | 立方体を手首カメラで探して挟み、緑は右・青は左に置く。模型 → 実機の順に同じプログラムで実行 |
-| `aipl/dofbot_arm.aipl` | 板に載せる腕のアクター（POST /cc） |
-| `color_service.py` | Mac で動く「Camera」「Plan」節点（UDP 9012 / HTTP 8091）。色判定・探索・下ろし・挟めた判定・PLAN |
-| `locate.py` | 逆運動学、カメラ画像から卓上への逆射影、立方体の探索と段階的な下ろし |
-| `geometry.json` | 寸法の正本（出典つき: URDF / 仮 / 実測）。CG と逆運動学が同じ値を使う |
-| `snapshots/2026-09-29_sort_ok/` | 実機で完遂した時の一式と手順（README.md） |
-| `NEXT_SESSION.md` | 経緯と引き継ぎ |
-| `aipl/sort_run*.log` | 実行記録（論文①の 7.4 節の根拠） |
+| `aipl/sort.aipl` | Finds a cube with the wrist camera, grasps it, and places green cubes on the right and blue cubes on the left. The same program runs first in the simulator, then on the real robot |
+| `aipl/dofbot_arm.aipl` | The arm actor loaded onto the board (POST /cc) |
+| `color_service.py` | The "Camera" and "Plan" nodes running on the Mac (UDP 9012 / HTTP 8091): color classification, search, lowering, grasp check, PLAN |
+| `locate.py` | Inverse kinematics, back-projection from the camera image onto the table, cube search, and stepwise lowering |
+| `geometry.json` | The single source of dimensions (each with its source: URDF / estimate / measured). The CG and the inverse kinematics use the same values |
+| `snapshots/2026-09-29_sort_ok/` | The complete set of files and the procedure from the run that succeeded on the real robot (README.md, in Japanese) |
+| `NEXT_SESSION.md` | History and handoff notes |
+| `aipl/sort_run*.log` | Run logs (the evidence for Section 7.4 of Paper ①) |
 
-動かし方は `snapshots/2026-09-29_sort_ok/README.md` を見る。
+For how to run it, see `snapshots/2026-09-29_sort_ok/README.md` (in Japanese).

@@ -1,6 +1,6 @@
-// two_stage.aipl — 同じ振り付けを、まず Mac の模型（127.0.0.1:9010）で、次に実機
-// （DOFBOT の Xinu 板 192.168.3.101:9010）で。どちらも "dofbot" アクターの cmd(s)。
-// 計画側は腕に触らない（io を持たない）。net と time だけ。
+// two_stage.aipl — the same choreography, first on the sim model on the Mac (127.0.0.1:9010), then on the real robot
+// (the DOFBOT's Xinu board, 192.168.3.101:9010). Both via the "dofbot" actor's cmd(s).
+// The planner side never touches the arm (no io effect). Only net and time.
 class Choreo {
   method step(b: string, s: string, ms: int) : int !{net, time, log} {
     print("  " ++ s ++ "  -> " ++ remote_call(b, "dofbot", "cmd", s, 3000));

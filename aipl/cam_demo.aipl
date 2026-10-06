@@ -1,4 +1,4 @@
-// cam_demo.aipl — 正典（Mac）からカメラ係の Pi 5（Linux, 192.168.3.19）に頼む。
+// cam_demo.aipl — from the reference implementation (Mac), ask the camera Pi 5 (Linux, 192.168.3.19).
 class Viewer {
   method watch() : unit !{net, log} {
     var c = "192.168.3.19:9010";

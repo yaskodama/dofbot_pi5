@@ -1,4 +1,4 @@
-// real_only.aipl — complex.aipl の振り付けを実機だけで（模型は済んでいるとき用）。
+// real_only.aipl — complex.aipl's choreography on the real robot only (for when the sim model run is already done).
 class Dancer {
   method go(b: string, s: string) : int !{net, log} {
     print("  " ++ s ++ "  -> " ++ remote_call(b, "dofbot", "cmd", s, 3000));
@@ -8,28 +8,28 @@ class Dancer {
 class Planner {
   method dance(d: Dancer, b: string) : int !{net, time, log} {
     var r = 0;
-    r = now d.go(b, "pose 90 90 90 90 90 30 1500") timeout 5000 else 0; wait(1750);   // 直立
-    r = now d.go(b, "pose 90 164 18 0 90 30 1500") timeout 5000 else 0; wait(1750);   // P_LOOK_AT（前を見る）
-    r = now d.go(b, "set 1 150 900") timeout 5000 else 0; wait(1150);   // 右を見る
-    r = now d.go(b, "set 1 30 1400") timeout 5000 else 0; wait(1650);   // 左を見る
+    r = now d.go(b, "pose 90 90 90 90 90 30 1500") timeout 5000 else 0; wait(1750);   // upright
+    r = now d.go(b, "pose 90 164 18 0 90 30 1500") timeout 5000 else 0; wait(1750);   // P_LOOK_AT (look forward)
+    r = now d.go(b, "set 1 150 900") timeout 5000 else 0; wait(1150);   // look right
+    r = now d.go(b, "set 1 30 1400") timeout 5000 else 0; wait(1650);   // look left
     r = now d.go(b, "set 1 90 900") timeout 5000 else 0; wait(1150);
-    r = now d.go(b, "pose 90 106 0 0 90 30 1500") timeout 5000 else 0; wait(1750);   // P_LOOK_MAP（下を見る）
-    r = now d.go(b, "set 5 30 700") timeout 5000 else 0; wait(950);    // 手首をひねる
+    r = now d.go(b, "pose 90 106 0 0 90 30 1500") timeout 5000 else 0; wait(1750);   // P_LOOK_MAP (look down)
+    r = now d.go(b, "set 5 30 700") timeout 5000 else 0; wait(950);    // twist the wrist
     r = now d.go(b, "set 5 150 1200") timeout 5000 else 0; wait(1450);
     r = now d.go(b, "set 5 90 700") timeout 5000 else 0; wait(950);
-    r = now d.go(b, "pose 90 80 50 50 90 30 1500") timeout 5000 else 0; wait(1750);   // P_TOP（構え）
-    r = now d.go(b, "pose 90 41 55 15 90 30 1500") timeout 5000 else 0; wait(1750);   // P_CENTER（前へ伸ばす）
-    r = now d.go(b, "set 6 135 600") timeout 5000 else 0; wait(850);    // つかむ
-    r = now d.go(b, "pose 90 80 50 50 90 135 1200") timeout 5000 else 0; wait(1450);   // 持ち上げる
-    r = now d.go(b, "pose 180 80 50 50 90 135 1500") timeout 5000 else 0; wait(1750);   // 180° 回す
-    r = now d.go(b, "pose 180 35 65 0 90 135 1500") timeout 5000 else 0; wait(1750);   // P_HEAP_1（置く）
-    r = now d.go(b, "set 6 30 600") timeout 5000 else 0; wait(850);    // 放す
+    r = now d.go(b, "pose 90 80 50 50 90 30 1500") timeout 5000 else 0; wait(1750);   // P_TOP (ready)
+    r = now d.go(b, "pose 90 41 55 15 90 30 1500") timeout 5000 else 0; wait(1750);   // P_CENTER (reach forward)
+    r = now d.go(b, "set 6 135 600") timeout 5000 else 0; wait(850);    // grasp
+    r = now d.go(b, "pose 90 80 50 50 90 135 1200") timeout 5000 else 0; wait(1450);   // lift
+    r = now d.go(b, "pose 180 80 50 50 90 135 1500") timeout 5000 else 0; wait(1750);   // rotate 180°
+    r = now d.go(b, "pose 180 35 65 0 90 135 1500") timeout 5000 else 0; wait(1750);   // P_HEAP_1 (place)
+    r = now d.go(b, "set 6 30 600") timeout 5000 else 0; wait(850);    // release
     r = now d.go(b, "pose 180 80 50 50 90 30 1200") timeout 5000 else 0; wait(1450);
-    r = now d.go(b, "pose 0 80 50 50 90 30 2000") timeout 5000 else 0; wait(2250);   // 反対側へ大きく振る
+    r = now d.go(b, "pose 0 80 50 50 90 30 2000") timeout 5000 else 0; wait(2250);   // big swing to the opposite side
     r = now d.go(b, "pose 0 43 48 6 90 30 1200") timeout 5000 else 0; wait(1450);   // P_NUM_4
-    r = now d.go(b, "pose 90 90 0 180 90 180 1800") timeout 5000 else 0; wait(2050);   // P_ACTION_2（手首を反らす）
+    r = now d.go(b, "pose 90 90 0 180 90 180 1800") timeout 5000 else 0; wait(2050);   // P_ACTION_2 (bend the wrist back)
     r = now d.go(b, "pose 90 131 52 0 90 180 1500") timeout 5000 else 0; wait(1750);   // P_ACTION_3
-    r = now d.go(b, "pose 90 90 90 90 90 30 1800") timeout 5000 else 0; wait(2050);   // 直立に戻る
+    r = now d.go(b, "pose 90 90 90 90 90 30 1800") timeout 5000 else 0; wait(2050);   // back to upright
     reply(22);
   }
 }

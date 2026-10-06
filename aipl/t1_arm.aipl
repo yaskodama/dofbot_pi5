@@ -1,4 +1,4 @@
-// t1 — 正典（Mac）から DOFBOT の Xinu 板へ。arm_cmd は板の /arm 口に運ばれる（io）。
+// t1 — from the reference implementation (Mac) to the DOFBOT's Xinu board. arm_cmd is forwarded to the board's /arm endpoint (io).
 class Tester {
   method run() : unit !{io, log} {
     print("stat: " ++ arm_cmd("stat"));

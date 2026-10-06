@@ -1,4 +1,4 @@
-# Mac から SSH で流す共通部: Arm_Lib（bus 1）、指令の間は 0.3 秒、読み出しは再試行、写真は /tmp/cam.jpg
+# Common part streamed from the Mac over SSH: Arm_Lib (bus 1), 0.3 s between commands, reads are retried, photo goes to /tmp/cam.jpg
 import sys, time, cv2
 sys.path.insert(0, '/home/pi/colcon_ws/src/Arm_Lib')
 from Arm_Lib import Arm_Device
@@ -23,7 +23,7 @@ def shot(path='/tmp/cam.jpg'):
     if ok: cv2.imwrite(path, f)
     return ok
 
-# ---- 平面IK（URDF: 肩高0.1075, 上腕0.08285, 前腕0.08285, 手首→サーボ5中心0.07385, 把持点はさらに LG）
+# ---- Planar IK (URDF: shoulder height 0.1075, upper arm 0.08285, forearm 0.08285, wrist -> servo-5 center 0.07385, grasp point a further LG)
 import math
 H, L, L3, LG = 0.1075, 0.08285, 0.07385, 0.06
 def fk(s2, s3, s4):
@@ -31,7 +31,7 @@ def fk(s2, s3, s4):
     x = L*math.sin(A1) + L*math.sin(A2) + L3*math.sin(A3); z = H + L*math.cos(A1) + L*math.cos(A2) + L3*math.cos(A3)
     return (x, z, x + LG*math.sin(A3), z + LG*math.cos(A3))   # (P5x, P5z, gripx, gripz)
 def ik(gx, gz, tilt=10):
-    """把持点 (前方 gx m, 高さ gz m)、手先の傾き tilt°(鉛直から前へ) → (s2,s3,s4)"""
+    """Grasp point (forward gx m, height gz m), hand tilt tilt° (forward from vertical) -> (s2,s3,s4)"""
     A3 = math.radians(180 - tilt)
     px, pz = gx - LG*math.sin(A3), gz - LG*math.cos(A3)
     wx, wz = px - L3*math.sin(A3), pz - L3*math.cos(A3) - H

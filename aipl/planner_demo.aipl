@@ -1,5 +1,5 @@
-// planner_demo.aipl — 正典（Mac）で走る計画側。腕には触らず（io を持たない）、
-// 板の上の Arm アクターに remote_call で頼む（net）。
+// planner_demo.aipl — the planner side, running on the reference implementation (Mac). It doesn't touch the arm (no io)
+// and asks the Arm actor on the Xinu board via remote_call (net).
 class Planner {
   method demo() : unit !{net, log} {
     var b = "192.168.3.101:9010";
