@@ -1,0 +1,174 @@
+// sort_agent.aipl - a mobile agent that sorts the green and blue cubes (green -> right, blue -> left).
+//
+// This one file is the agent. The dock (dock.py) sends the SAME source text first to the Xinu simulator
+// (aice-avm, POST /actor/loadsrc) and then to the Xinu board on the DOFBOT's Pi 5 (POST /cc).
+// Each host compiles it on arrival; nothing in it says which host it is on.
+//
+//   - arm_cmd(s) is "the arm of the host I am on": the CG arm in the simulator, the I2C arm board on the Pi 5.
+//   - The agent is a state machine. Every step(input) runs ONE short fragment (marked // [n]) and returns
+//         "<n>;<verb>;<arg>;<note>"
+//     verb = wait <ms>          - I moved the arm; call me again after <ms>
+//            eye <method> <arg> - ask the camera service (color_service) and give me its answer as the next input
+//            next               - call me again right away
+//            done <placed>      - finished
+//     A host never runs a method for long (the Xinu board cuts a run off after 250 ms), so the agent never
+//     blocks: waiting and the camera requests are carried out by the dock between steps.
+//   - pack() / unpack(s) carry the agent's own memory (its travel log) from one host to the next.
+//   - While the agent occupies a host it also answers as that host's arm actor ("/dofbot", method cmd),
+//     so the camera service can still move the arm during a search. (It is one actor exposed under two names:
+//     on the Xinu board every web_expose route currently resolves to actor #0, so a second actor can't be exposed.)
+class SortAgent {
+  var st = 0;
+  var placed = 0;
+  var tries = 0;
+  var misses = 0;
+  var steps = 0;
+  var carried = false;   // has a travel log been handed to me (unpack)?
+  // String fields are set on arrival ([0]): the Xinu board only allows int/bool field initialisers.
+  var need;
+  var c;
+  var base;
+  var pre;
+  var h0;
+  var at;
+  var trail;
+  var host;
+
+  method pack() : string !{} {
+    if (carried == false) { reply(""); } else { reply(trail); }
+  }
+  method unpack(s: string) : string !{mut} {
+    trail = s;
+    carried = true;
+    reply("ok");
+  }
+  method cmd(s: string) : string !{io} {                 // the host's arm, as the "dofbot" actor
+    reply(arm_cmd(s));
+  }
+  method status() : string !{} {
+    reply("st=" ++ st ++ " placed=" ++ placed ++ " tries=" ++ tries ++ " steps=" ++ steps);
+  }
+
+  method step(input: string) : string !{io, mut} {
+    steps = steps + 1;
+    var out = "";
+    if (st == 0) {                                                        // [0] arrive: who is my host? stand upright
+      host = arm_cmd("ver");
+      need = "any"; c = "none"; base = "90"; pre = "59 35 10"; h0 = "no"; at = "30";
+      if (carried == false) { trail = ""; carried = true; }
+      var r0 = arm_cmd("pose 90 90 90 90 90 30 2600");
+      st = 1;
+      out = "0;wait;2850;arrived on [" ++ host ++ "] " ++ r0;
+    } else { if (st == 1) {                                               // [1] search for a cube (the camera service sweeps the arm)
+      if (tries >= 30) {
+        st = 90;
+        out = "1;next;;gave up after 30 tries";
+      } else {
+        st = 2;
+        out = "1;eye;locate;30 " ++ need;
+      }
+    } else { if (st == 2) {                                               // [2] what did the search find?
+      c = input;
+      if (c == "none") {
+        misses = misses + 1;
+        tries = tries + 1;
+        st = 1;
+        out = "2;next;;nothing found (sweep " ++ misses ++ ")";
+        if (placed > 0) { if (misses >= 2) { st = 90; out = "2;next;;no more cubes in reach"; } }
+        if (placed == 0) { if (misses >= 3) { st = 90; out = "2;next;;no cube in reach after 3 sweeps"; } }
+      } else {
+        st = 3;
+        out = "2;eye;get;base";
+      }
+    } else { if (st == 3) {                                               // [3] the base angle that faces the cube
+      base = input;
+      st = 4;
+      out = "3;eye;get;pre";
+    } else { if (st == 4) {                                               // [4] open the fingers
+      pre = input;
+      var r4 = arm_cmd("set 6 30 500");
+      st = 5;
+      out = "4;wait;700;" ++ c ++ " cube at base " ++ base ++ ": " ++ r4;
+    } else { if (st == 5) {                                               // [5] ready pose above the cube
+      var r5 = arm_cmd("pose " ++ base ++ " 80 50 50 90 30 2000");
+      st = 6;
+      out = "5;wait;2250;" ++ r5;
+    } else { if (st == 6) {                                               // [6] lower onto the cube in 0.5 cm steps
+      st = 7;
+      out = "6;eye;lower;here 30";
+    } else { if (st == 7) {                                               // [7] grasp (or give up on this one)
+      if (input == "err") {
+        var r7 = arm_cmd("pose " ++ base ++ " 80 50 50 90 30 2000");
+        tries = tries + 1;
+        st = 1;
+        out = "7;wait;2250;could not lower - look again";
+      } else {
+        var r7b = arm_cmd("set 6 145 800");
+        st = 8;
+        out = "7;wait;1300;grasp " ++ r7b;
+      }
+    } else { if (st == 8) {                                               // [8] held right after closing?
+      st = 9;
+      out = "8;eye;held;";
+    } else { if (st == 9) {                                               // [9] rise slowly along the axis
+      h0 = input;
+      var r9 = arm_cmd("pose " ++ base ++ " " ++ pre ++ " 90 145 2500");
+      st = 10;
+      out = "9;wait;2750;held=" ++ h0 ++ " " ++ r9;
+    } else { if (st == 10) {                                              // [10] lift (P_TOP)
+      var r10 = arm_cmd("pose " ++ base ++ " 80 50 50 90 145 3000");
+      st = 11;
+      out = "10;wait;3250;" ++ r10;
+    } else { if (st == 11) {                                              // [11] still held after lifting?
+      st = 12;
+      out = "11;eye;held;";
+    } else { if (st == 12) {                                              // [12] carry it, or open and look again
+      if (input == "yes") {
+        var r12 = arm_cmd("set 6 140 400");
+        at = "30";
+        if (c == "green") { at = "150"; }
+        st = 13;
+        out = "12;wait;650;holding " ++ c ++ " -> base " ++ at;
+      } else {
+        var r12b = arm_cmd("set 6 30 500");
+        tries = tries + 1;
+        st = 1;
+        out = "12;wait;700;the fingers closed on nothing - look again";
+      }
+    } else { if (st == 13) {                                              // [13] swing to the drop-off spot
+      var r13 = arm_cmd("pose " ++ at ++ " 80 50 50 90 140 2600");
+      st = 14;
+      out = "13;wait;2850;" ++ r13;
+    } else { if (st == 14) {                                              // [14] lower onto the drop-off spot
+      st = 15;
+      out = "14;eye;lower;" ++ at ++ " 17 140";
+    } else { if (st == 15) {                                              // [15] release
+      var r15 = arm_cmd("set 6 30 600");
+      st = 16;
+      out = "15;wait;850;release " ++ r15;
+    } else { if (st == 16) {                                              // [16] rise; one more placed
+      var r16 = arm_cmd("pose " ++ at ++ " 80 50 50 90 30 2000");
+      placed = placed + 1;
+      misses = 0;
+      tries = tries + 1;
+      if (c == "green") { need = "blue"; } else { need = "green"; }
+      st = 1;
+      if (placed >= 2) { st = 90; }
+      out = "16;wait;2250;placed " ++ placed ++ " (" ++ c ++ ")";
+    } else { if (st == 90) {                                              // [90] back to upright
+      var r90 = arm_cmd("pose 90 90 90 90 90 30 3100");
+      st = 99;
+      out = "90;wait;3350;" ++ r90;
+    } else {                                                              // [99] done: note this host in my travel log
+      if (st == 99) {
+        trail = trail ++ "[" ++ host ++ ": placed " ++ placed ++ " in " ++ steps ++ " steps]";
+        st = 100;
+      }
+      out = "99;done;" ++ placed ++ ";" ++ trail;
+    } } } } } } } } } } } } } } } } } }
+    reply(out);
+  }
+}
+var agent = new SortAgent();
+web_expose("/agent", "agent");
+web_expose("/dofbot", "agent");

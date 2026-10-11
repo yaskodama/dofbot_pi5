@@ -1,0 +1,16 @@
+15:22:56 == migrate -> Xinu on the DOFBOT Pi 5 : POST http://192.168.3.101/cc (7999 bytes of source)
+15:22:56    host says: => 0
+15:22:56    hand over memory: unpack('[board version 0.sim: placed 2 in 35 steps]') -> ok
+15:22:56    [0] line 55  arrived on [board version 0.21] ok pose 90 90 90 90 90 30 ms=2600  (wait 2850 ms)
+15:24:12    [1] line 62  eye.locate(real 30 any) = none
+15:24:12    [2] line 70  nothing found (sweep 1)
+15:25:27    [1] line 62  eye.locate(real 30 any) = none
+15:25:27    [2] line 70  nothing found (sweep 2)
+15:26:42    [1] line 62  eye.locate(real 30 any) = none
+15:26:42    [2] line 70  no cube in reach after 3 sweeps
+15:26:42    [90] line 158  ok pose 90 90 90 90 90 30 ms=3100  (wait 3350 ms)
+15:26:45    [99] line 162  done: placed 0, 9 steps, 229 s
+15:26:45    travel log: [board version 0.sim: placed 2 in 35 steps][board version 0.21: placed 0 in 9 steps]
+15:26:48 == the agent leaves the Pi 5; board arm actor restored (=> 0)
+15:26:48 == result: real placed 0
+15:26:48 == the agent carried: [board version 0.sim: placed 2 in 35 steps][board version 0.21: placed 0 in 9 steps]
