@@ -2,7 +2,7 @@
 
 | File | Contents |
 |---|---|
-| `paper1.tex` / `paper1.pdf` | Manuscript of Paper ① (16 pages, 2026-09-30 version). Real-robot results are in Sections 7.4–7.6 |
+| `paper1.tex` / `paper1.pdf` | Manuscript of Paper ① (20 pages, 2026-10-11 version, rewritten for the mobile-agent approach: the same AIPL agent runs on the simulator, then migrates to the real robot). The execution model is Section 5.2 and the migration run is Section 7.7; Sections 7.3–7.6 are results from the earlier remote-call approach |
 | `plan2.tex` / `plan2.pdf` | Experiment plan toward completion, revised edition (2026-09-29) |
 | `plan3.tex` / `plan3.pdf` | Same, 3rd edition (evening of 2026-09-29, with E0′ placed in W1) |
 
