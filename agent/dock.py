@@ -13,9 +13,15 @@ The dock makes no decisions. It is the agent's clock and post office:
   - tells the simulator's AIPL program window which fragment ran ("PC <line> ..." to UDP/9011; the line is where
     the agent's source has the marker // [n]), and lists each move in the CG's PLAN.
 
-usage: python3 dock.py [--only sim|real] [--no-cubes]
+Gate (eq. (1) of the paper): the agent moves to the real arm only if its run on the simulator passes
+  - the agent reported done and placed as many cubes as the CG table had, and
+  - independently of what the agent says, every CG cube is lying on the table (not held) in the drop-off
+    zone of its color (green: base 150 deg, blue: base 30 deg, 17 cm out; within 3 cm).
+Each decision is appended to runs/gate.jsonl. --no-gate migrates whatever the simulator showed (logged too).
+
+usage: python3 dock.py [--only sim|real] [--cubes both|green|blue] [--no-cubes] [--no-gate]
 """
-import argparse, os, re, socket, sys, time, urllib.request
+import argparse, json, math, os, re, socket, sys, time, urllib.parse, urllib.request
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import udpq
@@ -30,6 +36,9 @@ HOSTS = {
     'real': {'name': 'Xinu on the DOFBOT Pi 5', 'load': 'http://192.168.3.101/cc',
              'udp': '192.168.3.101:9010'},
 }
+ZONES = {'green': 150, 'blue': 30}   # drop-off base angle (deg) by color; 17 cm out from the base axis
+ZONE_R, ZONE_TOL, CUBE_HALF = 0.17, 0.03, 0.015
+GATE_LOG = os.path.join(HERE, 'runs', 'gate.jsonl')
 EYE_MS = {'locate': 200000, 'lower': 60000, 'held': 15000, 'get': 8000}
 
 _tr = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -66,6 +75,44 @@ def camera_ready():
         log('   camera on the Pi 5: %s -> start: %s' % (' '.join(st[5:6]) or 'no answer', r[-1] if r else ''))
         time.sleep(2)
     raise SystemExit('the Pi 5 camera does not stream (power-cycle the board, then run again)')
+
+def cg_cubes():
+    """every CG cube as the simulator window last reported it (via the camera service)"""
+    st = json.loads(urllib.request.urlopen('http://127.0.0.1:8091/stat', timeout=5).read())
+    return st.get('cubes') or [], st.get('cubes_age')
+
+def gate(placed, expected):
+    """V(tau_sim, u): may the agent move to the real arm? -> (ok, reasons, scene)"""
+    reasons = []
+    if placed != expected:
+        reasons.append('agent placed %s, the table had %d' % (placed, expected))
+    time.sleep(1.0)                                    # let the window report the final scene
+    cubes, age = cg_cubes()
+    if age is None or age > 3:
+        reasons.append('no fresh CG scene from the simulator window (age %s s)' % age)
+    scene = []
+    for c in cubes:
+        base = 90 + math.degrees(math.atan2(-c['z'], c['x']))
+        r = math.hypot(c['x'], c['z'])
+        want = ZONES.get(c['color'])
+        if want is None:
+            d = None
+        else:
+            yaw = math.radians(want - 90)
+            d = math.hypot(c['x'] - ZONE_R * math.cos(yaw), c['z'] + ZONE_R * math.sin(yaw))
+        scene.append({'color': c['color'], 'base': round(base, 1), 'r': round(r, 3), 'y': c['y'],
+                      'held': bool(c['held']), 'off_zone_m': None if d is None else round(d, 3)})
+        if c['held']:
+            reasons.append('%s cube is still in the hand' % c['color'])
+        elif c['y'] > CUBE_HALF + 0.005:
+            reasons.append('%s cube is not on the table (y=%.3f)' % (c['color'], c['y']))
+        if d is None:
+            reasons.append('%s cube has no drop-off zone' % c['color'])
+        elif d > ZONE_TOL:
+            reasons.append('%s cube is %.1f cm from its zone (base %.0f, r %.1f cm)' % (c['color'], d * 100, base, r * 100))
+    if len(cubes) != expected:
+        reasons.append('the window reports %d cubes, expected %d' % (len(cubes), expected))
+    return not reasons, reasons, scene
 
 def fragment_lines(src):
     """marker // [n] -> line number (1-based) of that fragment in the agent's source"""
@@ -147,25 +194,65 @@ def visit(mode, src, carried):
     return int(arg or 0), trail
 
 def main():
+    global AGENT
     ap = argparse.ArgumentParser()
     ap.add_argument('--only', choices=['sim', 'real'])
     ap.add_argument('--no-cubes', action='store_true', help='do not re-place the CG cubes before the simulator run')
     ap.add_argument('--carry', default='', help='memory to hand to the agent on its first host (e.g. from an earlier visit)')
+    ap.add_argument('--cubes', choices=['both', 'green', 'blue'], default='both', help='CG cubes to place before the simulator run')
+    ap.add_argument('--agent', default=AGENT, help='agent source to send (default: sort_agent.aipl)')
+    ap.add_argument('--no-gate', action='store_true', help='move to the real arm whatever the simulator showed (still logged)')
+    ap.add_argument('--at', default='', help='where the CG cubes go, e.g. green:17:90,blue:15:70 (cm from the base axis, base deg) - the real ones\' spots')
+    ap.add_argument('--summary', default='', help='write the run summary (placed per host, gate, carried) to this JSON file')
     a = ap.parse_args()
+    AGENT = os.path.abspath(a.agent)
     src = open(AGENT).read()
     udpq.call(SERVICE, 'Plan', 'reset', '', 2000)
     order = [a.only] if a.only else ['sim', 'real']
     carried, res = a.carry, {}
+    expected = 2 if a.cubes == 'both' else 1
+    gate_ok = True
+    gate_rec = None
     for mode in order:
         if mode == 'sim' and not a.no_cubes:
-            log('CG: ' + urllib.request.urlopen('http://127.0.0.1:8091/sim?c=both', timeout=5).read().decode().strip())
+            log('CG: ' + urllib.request.urlopen('http://127.0.0.1:8091/sim?c=' + a.cubes + '&at=' + urllib.parse.quote(a.at), timeout=5).read().decode().strip())
+            time.sleep(1.5)                           # let the window pick up the new spots before the agent looks
         res[mode], carried = visit(mode, src, carried)
+        if mode == 'sim':
+            ok, reasons, scene = gate(res['sim'], expected)
+            gate_ok = ok
+            for c in scene:
+                log('   CG %-5s base %5.1f  r %.1f cm  %s  %s from its zone' % (
+                    c['color'], c['base'], c['r'] * 100, 'held' if c['held'] else 'on table',
+                    '?' if c['off_zone_m'] is None else '%.1f cm' % (c['off_zone_m'] * 100)))
+            go = 'real' in order and (ok or a.no_gate)
+            rec = {'t': time.strftime('%Y-%m-%dT%H:%M:%S'), 'cubes': a.cubes, 'expected': expected,
+                   'sim_placed': res['sim'], 'pass': ok, 'reasons': reasons, 'scene': scene,
+                   'no_gate': a.no_gate, 'migrated': go}
+            gate_rec = rec
+            with open(GATE_LOG, 'a') as f:
+                f.write(json.dumps(rec, ensure_ascii=False) + '\n')
+            if ok:
+                log('== GATE: pass - the agent may move to the real arm')
+            else:
+                log('== GATE: REJECT - ' + '; '.join(reasons))
+            if 'real' in order and not go:
+                log('== the agent stays on the simulator; the real arm is not touched')
+                order = ['sim']
+                break
+            if not ok and a.no_gate:
+                log('== --no-gate: moving to the real arm anyway')
     if 'real' in order:
         # leave the board as we found it: its usual arm actor
         r = post(HOSTS['real']['load'], open(os.path.join(HERE, '..', 'aipl', 'dofbot_arm.aipl'), 'rb').read())
         log('== the agent leaves the Pi 5; board arm actor restored (%s)' % r.splitlines()[-1])
     log('== result: ' + ', '.join('%s placed %d' % (k, v) for k, v in res.items()))
     log('== the agent carried: %s' % carried)
+    if a.summary:
+        with open(a.summary, 'w') as f:
+            json.dump({'placed': res, 'gate': gate_rec, 'carried': carried, 'at': a.at, 'cubes': a.cubes}, f, ensure_ascii=False)
+    if 'sim' in res and not gate_ok:
+        sys.exit(2)                                   # rejected at the gate (scripts can tell)
 
 if __name__ == '__main__':
     main()

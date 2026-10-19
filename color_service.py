@@ -579,6 +579,16 @@ class Hd(BaseHTTPRequestHandler):
                         RING.append((time.time(), 'sim', (w, h, px), state['simframe_a']))
                     if which == 'simframe' and 'cx' in kv:        # where the CG cube is now (whether it's gripped)
                         state['cube_at'] = {k2: float(kv[k2]) for k2 in ('cx', 'cy', 'cz', 'held') if k2 in kv}
+                    if which == 'simframe' and 'cubes' in kv:     # every CG cube "color:x,y,z,held;..." (read by the dock's gate)
+                        cs = []
+                        for item in urllib.parse.unquote(kv['cubes']).split(';'):
+                            col, _, v = item.partition(':')
+                            try:
+                                x, y, z, h = (float(t) for t in v.split(','))
+                            except ValueError:
+                                continue
+                            cs.append({'color': col, 'x': x, 'y': y, 'z': z, 'held': h})
+                        state['cubes'], state['cubes_t'] = cs, time.time()
             self._send('ok\n')
         else:
             self._send('no such path\n')
@@ -586,12 +596,16 @@ class Hd(BaseHTTPRequestHandler):
     def do_GET(self):
         p, _, q = self.path.partition('?')
         if p == '/sim':
-            c = dict(x.split('=', 1) for x in q.split('&') if '=' in x).get('c', '')
+            kv = dict(x.split('=', 1) for x in q.split('&') if '=' in x)
+            c = kv.get('c', '')
+            # at=green:17:90,blue:15:70 — where each CG cube goes (cm from the base axis, base angle in deg);
+            # lets a trial put the CG cubes where the real ones are. Without it the window uses its home spots.
+            at = urllib.parse.unquote(kv.get('at', ''))
             with lock:
                 if c in ('green', 'blue', 'both'):          # both: place green and blue side by side
-                    state['cube'] = {'color': c, 'seq': state['cube']['seq'] + 1}
+                    state['cube'] = {'color': c, 'seq': state['cube']['seq'] + 1, 'at': at}
                 cube = dict(state['cube'])
-            self._send('CG cube = %s (placed again, #%d)\n' % (cube['color'], cube['seq']))
+            self._send('CG cube = %s %s(placed again, #%d)\n' % (cube['color'], ('at ' + cube['at'] + ' ') if cube.get('at') else '', cube['seq']))
         elif p in ('/plan/push', '/plan/done', '/plan/reset'):   # commands sent from the Xinu simulator window go into the same PLAN
             kv = {}
             for x in q.split('&'):
@@ -640,6 +654,7 @@ class Hd(BaseHTTPRequestHandler):
         elif p == '/stat':
             with lock:
                 st = dict(state['stat']); st['cube'] = dict(state['cube']); st['cube_at'] = state.get('cube_at')
+                st['cubes'] = state.get('cubes'); st['cubes_age'] = round(time.time() - state.get('cubes_t', 0), 1)
                 st['cg_age'] = round(time.time() - state['simframe_t'], 1) if state['simframe'] else None
             self._send(json.dumps(st), 'application/json')
         else:

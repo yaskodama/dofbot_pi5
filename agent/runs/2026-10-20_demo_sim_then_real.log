@@ -1,0 +1,87 @@
+08:35:11 CG: CG cube = both (placed again, #2)
+08:35:11 == migrate -> Xinu simulator (aice-avm on the Mac) : POST http://127.0.0.1:8080/actor/loadsrc (7999 bytes of source)
+08:35:11    host says: loadsrc: src=7999 avm=2616 spawned actor id=0
+08:35:11    [0] line 55  arrived on [board version 0.sim] ok pose 90 90 90 90 90 30 ms=2600  (wait 2850 ms)
+08:35:43    [1] line 62  eye.locate(sim 30 any) = green
+08:35:43    [2] line 70  eye.get(sim base) = 100
+08:35:43    [3] line 83  eye.get(sim pre) = 58 46 0
+08:35:43    [4] line 87  green cube at base 100: ok set 6 -> 30 ms=500  (wait 700 ms)
+08:35:44    [5] line 92  ok pose 100 80 50 50 90 30 ms=2000  (wait 2250 ms)
+08:35:49    [6] line 96  eye.lower(sim here 30) = ok 1.2
+08:35:49    [7] line 99  grasp ok set 6 -> 145 ms=800  (wait 1300 ms)
+08:35:50    [8] line 110  eye.held(sim) = yes
+08:35:50    [9] line 113  held=yes ok pose 100 58 46 0 90 145 ms=2500  (wait 2750 ms)
+08:35:53    [10] line 118  ok pose 100 80 50 50 90 145 ms=3000  (wait 3250 ms)
+08:35:56    [11] line 122  eye.held(sim) = yes
+08:35:56    [12] line 125  holding green -> base 150  (wait 650 ms)
+08:35:57    [13] line 138  ok pose 150 80 50 50 90 140 ms=2600  (wait 2850 ms)
+08:36:02    [14] line 142  eye.lower(sim 150 17 140) = ok 1.2
+08:36:02    [15] line 145  release ok set 6 -> 30 ms=600  (wait 850 ms)
+08:36:03    [16] line 149  placed 1 (green)  (wait 2250 ms)
+08:36:34    [1] line 62  eye.locate(sim 30 blue) = blue
+08:36:34    [2] line 70  eye.get(sim base) = 81
+08:36:34    [3] line 83  eye.get(sim pre) = 58 47 0
+08:36:34    [4] line 87  blue cube at base 81: ok set 6 -> 30 ms=500  (wait 700 ms)
+08:36:35    [5] line 92  ok pose 81 80 50 50 90 30 ms=2000  (wait 2250 ms)
+08:36:40    [6] line 96  eye.lower(sim here 30) = ok 1.2
+08:36:40    [7] line 99  grasp ok set 6 -> 145 ms=800  (wait 1300 ms)
+08:36:41    [8] line 110  eye.held(sim) = yes
+08:36:41    [9] line 113  held=yes ok pose 81 58 47 0 90 145 ms=2500  (wait 2750 ms)
+08:36:44    [10] line 118  ok pose 81 80 50 50 90 145 ms=3000  (wait 3250 ms)
+08:36:47    [11] line 122  eye.held(sim) = yes
+08:36:47    [12] line 125  holding blue -> base 30  (wait 650 ms)
+08:36:48    [13] line 138  ok pose 30 80 50 50 90 140 ms=2600  (wait 2850 ms)
+08:36:53    [14] line 142  eye.lower(sim 30 17 140) = ok 1.2
+08:36:53    [15] line 145  release ok set 6 -> 30 ms=600  (wait 850 ms)
+08:36:54    [16] line 149  placed 2 (blue)  (wait 2250 ms)
+08:36:56    [90] line 158  ok pose 90 90 90 90 90 30 ms=3100  (wait 3350 ms)
+08:36:59    [99] line 162  done: placed 2, 35 steps, 109 s
+08:36:59    travel log: [board version 0.sim: placed 2 in 35 steps]
+08:37:00    CG green base 150.0  r 16.6 cm  on table  0.4 cm from its zone
+08:37:00    CG blue  base  30.0  r 16.6 cm  on table  0.4 cm from its zone
+08:37:00 == GATE: pass - the agent may move to the real arm
+08:37:00 == migrate -> Xinu on the DOFBOT Pi 5 : POST http://192.168.3.101/cc (7999 bytes of source)
+08:37:02    host says: => 0
+08:37:02    the agent does not answer there yet ('err') - send it again (1)
+08:37:04    host says: => 0
+08:37:05    camera on the Pi 5: streaming
+08:37:05    hand over memory: unpack('[board version 0.sim: placed 2 in 35 steps]') -> ok
+08:37:05    [0] line 55  arrived on [board version 0.21] ok pose 90 90 90 90 90 30 ms=2600  (wait 2850 ms)
+08:38:05    [1] line 62  eye.locate(real 30 any) = blue
+08:38:05    [2] line 70  eye.get(real base) = 108
+08:38:05    [3] line 83  eye.get(real pre) = 48 60 0
+08:38:05    [4] line 87  blue cube at base 108: ok set 6 -> 30 ms=500  (wait 700 ms)
+08:38:05    [5] line 92  ok pose 108 80 50 50 90 30 ms=2000  (wait 2250 ms)
+08:38:10    [6] line 96  eye.lower(real here 30) = ok 1.2
+08:38:10    [7] line 99  grasp ok set 6 -> 145 ms=800  (wait 1300 ms)
+08:38:12    [8] line 110  eye.held(real) = yes
+08:38:12    [9] line 113  held=yes ok pose 108 48 60 0 90 145 ms=2500  (wait 2750 ms)
+08:38:15    [10] line 118  ok pose 108 80 50 50 90 145 ms=3000  (wait 3250 ms)
+08:38:19    [11] line 122  eye.held(real) = yes
+08:38:19    [12] line 125  holding blue -> base 30  (wait 650 ms)
+08:38:20    [13] line 138  ok pose 30 80 50 50 90 140 ms=2600  (wait 2850 ms)
+08:38:25    [14] line 142  eye.lower(real 30 17 140) = ok 1.2
+08:38:25    [15] line 145  release ok set 6 -> 30 ms=600  (wait 850 ms)
+08:38:26    [16] line 149  placed 1 (blue)  (wait 2250 ms)
+08:39:12    [1] line 62  eye.locate(real 30 green) = green
+08:39:13    [2] line 70  eye.get(real base) = 83
+08:39:13    [3] line 83  eye.get(real pre) = 53 51 4
+08:39:13    [4] line 87  green cube at base 83: ok set 6 -> 30 ms=500  (wait 700 ms)
+08:39:13    [5] line 92  ok pose 83 80 50 50 90 30 ms=2000  (wait 2250 ms)
+08:39:18    [6] line 96  eye.lower(real here 30) = ok 1.2
+08:39:18    [7] line 99  grasp ok set 6 -> 145 ms=800  (wait 1300 ms)
+08:39:20    [8] line 110  eye.held(real) = yes
+08:39:20    [9] line 113  held=yes ok pose 83 53 51 4 90 145 ms=2500  (wait 2750 ms)
+08:39:23    [10] line 118  ok pose 83 80 50 50 90 145 ms=3000  (wait 3250 ms)
+08:39:27    [11] line 122  eye.held(real) = yes
+08:39:27    [12] line 125  holding green -> base 150  (wait 650 ms)
+08:39:28    [13] line 138  ok pose 150 80 50 50 90 140 ms=2600  (wait 2850 ms)
+08:39:33    [14] line 142  eye.lower(real 150 17 140) = ok 1.2
+08:39:33    [15] line 145  release ok set 6 -> 30 ms=600  (wait 850 ms)
+08:39:34    [16] line 149  placed 2 (green)  (wait 2250 ms)
+08:39:36    [90] line 158  ok pose 90 90 90 90 90 30 ms=3100  (wait 3350 ms)
+08:39:39    [99] line 162  done: placed 2, 35 steps, 155 s
+08:39:39    travel log: [board version 0.sim: placed 2 in 35 steps][board version 0.21: placed 2 in 35 steps]
+08:39:42 == the agent leaves the Pi 5; board arm actor restored (=> 0)
+08:39:42 == result: sim placed 2, real placed 2
+08:39:42 == the agent carried: [board version 0.sim: placed 2 in 35 steps][board version 0.21: placed 2 in 35 steps]
