@@ -52,6 +52,29 @@ def cam_on():
     return st.split()[-1] if st else '?', r[0].strip()
 
 
+def check_zone(base, save):
+    """look at a drop-off spot, shoot straight from the board once the arm has settled, keep the image; -> green|blue|none|err
+    (color_service's check used a frame from before the arm arrived: trial 3 saw 'none' with the green cube in place)"""
+    L.load_geo()
+    try:
+        L.move(base, L.poses(0.17)[0], 2500, 30)
+        time.sleep(3.5)
+        img = L.shoot_board()
+    except Exception:
+        img = None
+    if not img:
+        return 'err'
+    W, H, px = img
+    with open(save, 'wb') as f:
+        f.write(b'P6\n%d %d\n255\n' % (W, H)); f.write(bytes(int(c * 255) for p in px for c in p))
+    best = None
+    for col in ('green', 'blue'):
+        b = L.blob(px, W, H, False, col)
+        if b and (best is None or b[3] > best[1]):
+            best = (col, b[3])
+    return best[0] if best else 'none'
+
+
 def run(n, label):
     cubes = plan(n)
     at = ','.join('%s:%d:%d' % (c, P[p][0], P[p][1]) for c, p in cubes)
@@ -86,8 +109,8 @@ def run(n, label):
         right = left = 'skipped (board stopped)'
     else:
         cam = cam_on()                                     # the board's camera sometimes stops by the end of a run (cause unknown)
-        right = ask('Camera check real 150')               # green drop-off spot
-        left = ask('Camera check real 30')                 # blue drop-off spot
+        right = check_zone(150, os.path.join(DATA, 'logs', 'trial%s_zone150.ppm' % tag))   # green drop-off spot
+        left = check_zone(30, os.path.join(DATA, 'logs', 'trial%s_zone30.ppm' % tag))      # blue drop-off spot
         L.move(90, [90, 90, 90], 2500, 30)
     want = {c for c, _ in cubes}
     cam_ok = (('green' not in want) or right == 'green') and (('blue' not in want) or left == 'blue')
@@ -129,7 +152,8 @@ if __name__ == '__main__':
         run(int(sys.argv[2]), sys.argv[3] if len(sys.argv) > 3 else '')
     elif cmd == 'recheck':                                 # redo the camera check of the drop-off spots for a recorded trial
         cam_on()
-        r, l = ask('Camera check real 150'), ask('Camera check real 30')
+        r = check_zone(150, os.path.join(DATA, 'logs', 'trial%s_zone150.ppm' % sys.argv[2]))
+        l = check_zone(30, os.path.join(DATA, 'logs', 'trial%s_zone30.ppm' % sys.argv[2]))
         L.move(90, [90, 90, 90], 2500, 30)
         rows = [json.loads(x) for x in open(OUT)]
         for x in reversed(rows):
