@@ -68,6 +68,12 @@ def camera_ready():
         if len(st) >= 6 and st[5] == 'streaming':
             log('   camera on the Pi 5: streaming')
             return
+        if not (len(st) >= 6 and st[5] == 'idle'):
+            # no clear answer (the board's HTTP is often busy right after a load): never start a camera that may be
+            # streaming - a second start kills it until a power cycle (the kernel leaks the old USB slot, cfgep_cc=8)
+            log('   camera on the Pi 5: no clear answer - ask again')
+            time.sleep(3)
+            continue
         try:
             r = get('/cam/start?frame=3&fps=10', 20).strip().splitlines()
         except OSError as ex:

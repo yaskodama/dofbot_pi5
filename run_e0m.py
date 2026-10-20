@@ -44,9 +44,15 @@ def cam_on():
             return L.http_get(u, t).decode('ascii', 'ignore').strip()
         except Exception as ex:
             return 'err %s' % ex
-    st = get('http://192.168.3.101/cam?w=160', 8)
+    for _ in range(5):                 # only an explicit "idle" may lead to a start (a second start kills a streaming camera)
+        st = get('http://192.168.3.101/cam?w=160', 8)
+        if st.endswith(('streaming', 'idle')):
+            break
+        time.sleep(3)
     if 'streaming' in st:
         return 'streaming', ''
+    if not st.endswith('idle'):
+        return 'no answer: ' + st[:40], ''
     r = get('http://192.168.3.101/cam/start?frame=3&fps=10', 15).splitlines()[-1:] or ['']
     time.sleep(3)
     return st.split()[-1] if st else '?', r[0].strip()
