@@ -56,12 +56,17 @@ def check_zone(base, save):
     """look at a drop-off spot, shoot straight from the board once the arm has settled, keep the image; -> green|blue|none|err
     (color_service's check used a frame from before the arm arrived: trial 3 saw 'none' with the green cube in place)"""
     L.load_geo()
-    try:
-        L.move(base, L.poses(0.17)[0], 2500, 30)
-        time.sleep(3.5)
-        img = L.shoot_board()
-    except Exception:
-        img = None
+    img, look = None, L.poses(0.17)[0]
+    for attempt in range(3):           # trial 5: right after the dock reloaded the actor the first move said ok but the arm stayed home
+        try:
+            L.move(base, look, 2500, 30)
+            time.sleep(3.5)
+            if L.check_pose(base, look) is False:
+                continue
+            img = L.shoot_board()
+            break
+        except Exception:
+            time.sleep(1.0)
     if not img:
         return 'err'
     W, H, px = img
