@@ -498,7 +498,7 @@ def locate(move_fn=None, shoot_fn=None, rot180=False, x=0.17, z=0.0, rounds=7, l
     look, pre, grasp = poses(r)
     if not (pre and grasp):
         log('cube at (%.3f, %.3f) cannot be grasped' % (x, z)); return None
-    return {'x': round(x, 4), 'z': round(z, 4), 'r': round(r, 4), 'base': s1, 'look': look, 'pre': pre, 'grasp': grasp, 'color': color}
+    return {'x': round(x, 4), 'z': round(z, 4), 'r': round(r, 4), 'base': s1, 'look': look, 'pre': pre, 'grasp': grasp, 'color': color or want}   # clamped at the inner edge in round 0: no blob yet, the survey's color stands
 
 
 if __name__ == '__main__':

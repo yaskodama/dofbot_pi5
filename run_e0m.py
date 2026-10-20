@@ -37,6 +37,21 @@ def point(n, k):
     print('trial %d: put the %s cube under the fingertip (%s: %d cm, base %d deg)' % (n, color, pos, r, base))
 
 
+def cam_on():
+    """-> (state right after the dock, result of the restart or '')"""
+    def get(u, t):
+        try:
+            return L.http_get(u, t).decode('ascii', 'ignore').strip()
+        except Exception as ex:
+            return 'err %s' % ex
+    st = get('http://192.168.3.101/cam?w=160', 8)
+    if 'streaming' in st:
+        return 'streaming', ''
+    r = get('http://192.168.3.101/cam/start?frame=3&fps=10', 15).splitlines()[-1:] or ['']
+    time.sleep(3)
+    return st.split()[-1] if st else '?', r[0].strip()
+
+
 def run(n, label):
     cubes = plan(n)
     at = ','.join('%s:%d:%d' % (c, P[p][0], P[p][1]) for c, p in cubes)
@@ -66,9 +81,11 @@ def run(n, label):
     held = json.loads(urllib.request.urlopen('http://localhost:8091/held?since=%f' % t0, timeout=5).read())
     ver1 = L.arm_udp('ver', tries=3)
     stopped = ('0.-1' in ver1) or ver1 == ''
+    cam = ('?', '')
     if stopped:
         right = left = 'skipped (board stopped)'
     else:
+        cam = cam_on()                                     # the board's camera sometimes stops by the end of a run (cause unknown)
         right = ask('Camera check real 150')               # green drop-off spot
         left = ask('Camera check real 30')                 # blue drop-off spot
         L.move(90, [90, 90, 90], 2500, 30)
@@ -82,7 +99,7 @@ def run(n, label):
            'resends': real_part.count('send it again'), 'grasp_tries': real_part.count('grasp ok'),
            'empty_locates': len(re.findall(r'eye\.locate\(real [^)]*\) = none', real_part)),
            'held_readbacks': [v for _, v in held], 'place_right_seen': right, 'place_left_seen': left,
-           'camera_success': cam_ok, 'visual': None, 'success': None,
+           'camera_success': cam_ok, 'cam_after_dock': cam[0], 'cam_restart': cam[1], 'visual': None, 'success': None,
            'board_before': ver0, 'board_after': ver1, 'board_stopped': stopped, 'log': os.path.basename(log)}
     with open(OUT, 'a') as f:
         f.write(json.dumps(rec, ensure_ascii=False) + '\n')
@@ -110,5 +127,19 @@ if __name__ == '__main__':
         point(int(sys.argv[2]), int(sys.argv[3]) if len(sys.argv) > 3 else 1)
     elif cmd == 'run':
         run(int(sys.argv[2]), sys.argv[3] if len(sys.argv) > 3 else '')
+    elif cmd == 'recheck':                                 # redo the camera check of the drop-off spots for a recorded trial
+        cam_on()
+        r, l = ask('Camera check real 150'), ask('Camera check real 30')
+        L.move(90, [90, 90, 90], 2500, 30)
+        rows = [json.loads(x) for x in open(OUT)]
+        for x in reversed(rows):
+            if x['label'] == sys.argv[2]:
+                want = set(c.split()[0] for c in x['cond'].split(' + '))
+                x.update(place_right_seen=r, place_left_seen=l, recheck=time.strftime('%H:%M:%S'),
+                         camera_success=(('green' not in want) or r == 'green') and (('blue' not in want) or l == 'blue'))
+                break
+        with open(OUT, 'w') as f:
+            f.writelines(json.dumps(x, ensure_ascii=False) + '\n' for x in rows)
+        print('right', r, 'left', l)
     elif cmd == 'seen':
         seen(sys.argv[2], sys.argv[3], ' '.join(sys.argv[4:]))

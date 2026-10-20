@@ -282,6 +282,7 @@ def plan_done(i, result):
     with lock:
         for it in state.get('plan', {}).get('items', []):
             if it['i'] == i:
+                result = result or ''                    # a None answer must not kill the UDP thread (the dock then waits out its timeout)
                 it['state'] = ('ok' if result.startswith(('ok', 'angles', 'green', 'blue'))
                                else 'none' if result.strip() == 'none' else 'fail')   # none: not found (in a check, means "gripped")
                 it['result'] = result[:60]
@@ -700,6 +701,8 @@ def serve(key, addr, reqid, actor, meth, arg):
         hv = state.get('held_v', '')
         plan_done(k, ('ok yes (servo6 %s)' if ans == 'yes' else 'no (servo6 %s)') % hv if ans in ('yes', 'no') else ans)
     else:
+        ans = 'err'
+    if ans is None:                              # never leave the caller without an answer
         ans = 'err'
     with lock:
         memo[key] = ans
