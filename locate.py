@@ -5,6 +5,8 @@
 # 3) use that point as the new target and repeat (a blob cut off at the image edge pulls the centroid inward, so a few times)
 # Output (last line): JSON {"x":..,"z":..,"base":..,"look":[..],"pre":[..],"grasp":[..],"color":..}
 import math, json, re, sys, time, colorsys, urllib.request, urllib.parse, os, threading
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'learn'))
+import theta as TH          # learnable settings (learn/theta.py). Absent learn/theta.json = the human-tuned values
 HTTP_LOCK = threading.Lock()    # the board's HTTP handles one request at a time (color_service plugs its own lock in here)
 
 B = 'http://192.168.3.101'
@@ -122,7 +124,7 @@ def look_pose(r):
 def grasp_poses(r):
     """Grip pose whose finger axis passes through the cube center with the fingertip at TIP_Y above the table, plus the point PRE_BACK back along that axis.
     Hand tilt is searched in 1° steps (with 5° steps, at 13.6-14.2 cm both 170° and 165° were out of joint range and the gap in between was missed)"""
-    for a3 in range(180, 129, -1):
+    for a3 in range(180, 129, -TH.get('tilt_step_deg')):
         a = math.radians(a3); d3 = (math.sin(a), math.cos(a))
         t = (TIP_Y - CUBE / 2) / d3[1]
         tip = (r + d3[0] * t, TIP_Y)
@@ -258,10 +260,17 @@ def shoot_board():
     return 160, 120, px
 
 
-def blob(px, W, H, rot180, want=None, min_frac=0.015):
+LAST_REJ = {}    # diagnostics of the last blob() call: pixels with the right hue and saturation rejected only by the value floor
+
+
+def blob(px, W, H, rot180, want=None, min_frac=None):
     """Color blob centroid (image coords in model orientation), color, count, bounding box.
     want: 'green' / 'blue' for that color only. None picks the color with more pixels (never mixes green and blue when both are visible)"""
+    if min_frac is None:
+        min_frac = TH.get('min_blob_frac')
+    bvmin, gsmin = TH.get('blue_v_min'), TH.get('green_s_min')
     pts = {'green': [], 'blue': []}
+    rej = []
     for y in range(H):
         for x in range(W):
             h, s, val = colorsys.rgb_to_hsv(*px[y * W + x])
@@ -270,10 +279,15 @@ def blob(px, W, H, rot180, want=None, min_frac=0.015):
             deg = h * 360
             # blue only with saturation >= 0.8 and value >= 0.2: the light-blue sheet on the table is saturation 0.3-0.7, the blue cube 1.0 (measured 2026-09-29)
             # green from value 0.06: on white paper the camera exposure drops and the green cube showed at value 0.1 (measured same day)
-            k = ('green' if (75 <= deg <= 165 and s >= 0.45) else
-                 'blue' if (190 <= deg <= 260 and s >= 0.8) else None)   # blue also from value 0.06 (blue at P2 showed at value 0.1-0.2)
+            k = ('green' if (75 <= deg <= 165 and s >= gsmin) else
+                 'blue' if (190 <= deg <= 260 and s >= 0.8 and val >= bvmin) else None)   # blue_v_min: human-tuned 0.06 (blue at P2 showed at value 0.1-0.2)
+            if k is None and 190 <= deg <= 260 and s >= 0.8:
+                rej.append(val)
             if k:
                 pts[k].append((W - 1 - x if rot180 else x, H - 1 - y if rot180 else y))
+    LAST_REJ.clear()
+    if rej:
+        LAST_REJ['blue'] = (len(rej), min(rej), max(rej))
     col = want if want in pts else max(pts, key=lambda c: len(pts[c]))
     p = pts[col]
     # The cube (3 cm) covers >= 5% of the image at viewing distance (~13 cm). Blobs under 1.5% are treated as thin objects (blue cables etc.)
@@ -286,6 +300,32 @@ def blob(px, W, H, rot180, want=None, min_frac=0.015):
     if max(us) - min(us) >= 0.85 * W and max(vs) - min(vs) >= 0.85 * H:
         return None
     return sum(us) / len(us), sum(vs) / len(vs), col, len(p), (min(us), max(us), min(vs), max(vs))
+
+
+ARCHIVE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'learn', 'frames')
+_arch_n = [0]
+
+
+def archive(img, what, s1, look):
+    """During a learning episode (learn/theta.json names one), keep every wrist-camera frame the locator decided on,
+    so a proposed change of the color settings can be replayed on past frames before it is adopted (learn/gate.py)"""
+    ep = TH.episode()
+    if not ep or not img:
+        return
+    W, H, px = img
+    d = os.path.join(ARCHIVE, ep); os.makedirs(d, exist_ok=True)
+    _arch_n[0] += 1
+    name = '%s_%03d_%s' % (time.strftime('%H%M%S'), _arch_n[0], what)
+    with open(os.path.join(d, name + '.ppm'), 'wb') as f:
+        f.write(b'P6 %d %d 255\n' % (W, H) + bytes(min(255, int(c * 255 + 0.5)) for p in px for c in p))
+    json.dump({'what': what, 'base': s1, 'look': list(look), 't': time.time()}, open(os.path.join(d, name + '.json'), 'w'))
+
+
+def read_ppm(path):
+    data = open(path, 'rb').read()
+    parts = data.split(maxsplit=4)
+    W, H = int(parts[1]), int(parts[2]); raw = parts[4]
+    return W, H, [(raw[3 * k] / 255, raw[3 * k + 1] / 255, raw[3 * k + 2] / 255) for k in range(W * H)]
 
 
 _rid = [int(time.time() * 1000) % 1000000 + 300000]
@@ -404,10 +444,14 @@ def survey(move_fn, shoot_fn, rot180=False, log=print, glimpse_fn=None, want=Non
         if not img:
             log('survey: no frame at %.0f cm, base %d' % (r * 100, s1)); continue
         W, H, px = img
+        archive(img, 'survey', s1, look)
         seen = []
         for col in ('green', 'blue'):
             b = blob(px, W, H, rot180, col)
             if not b:
+                if col == 'blue' and LAST_REJ.get('blue') and LAST_REJ['blue'][0] >= 20:
+                    n_, lo_, hi_ = LAST_REJ['blue']
+                    seen.append('blue-hued px below the value floor: %d (value %.2f-%.2f)' % (n_, lo_, hi_))
                 continue
             x, z = world_of(b[0], b[1], s1, look, W, H)
             rr = math.hypot(x, z)
@@ -462,7 +506,7 @@ def survey(move_fn, shoot_fn, rot180=False, log=print, glimpse_fn=None, want=Non
     return found
 
 
-def locate(move_fn=None, shoot_fn=None, rot180=False, x=0.17, z=0.0, rounds=7, log=print, want=None, glimpse_fn=None):
+def locate(move_fn=None, shoot_fn=None, rot180=False, x=0.17, z=0.0, rounds=None, log=print, want=None, glimpse_fn=None):
     """Move the arm with move_fn(s1, [s2,s3,s4]) and shoot with shoot_fn() -> (W, H, [(r,g,b) 0..1]).
     rot180: whether the image is rotated 180° (real robot True, CG False)"""
     move_fn = move_fn or (lambda s1, s: move(s1, s))
@@ -473,25 +517,32 @@ def locate(move_fn=None, shoot_fn=None, rot180=False, x=0.17, z=0.0, rounds=7, l
     if not cands:
         log('survey: no %s cube in reach' % (want or 'green/blue')); return None
     x, z, want = cands[0]['x'], cands[0]['z'], cands[0]['color']
+    if rounds is None:
+        rounds = TH.get('refine_rounds')
+    clamp = TH.get('inner_clamp_cm') / 100.0
     for i in range(rounds):
         r = math.hypot(x, z); s1 = round(90 + math.degrees(math.atan2(-z, x)))
         look = poses(r)[0]
-        if not look and r < 0.141:
-            # Inner edge: if it closes in to where no look pose is feasible, hold at the nearest feasible (14.1 cm) and go grip
+        if not look and clamp > 0 and r < clamp:
+            # Inner edge: if it closes in to where no look pose is feasible, hold at inner_clamp_cm (human-tuned 14.1) and go grip
             # (2026-09-29: at P2 (15 cm) the estimate became 13.6 cm and it gave up despite having found it. A grip pose is feasible even at 13 cm)
-            k = 0.141 / max(r, 1e-6); x, z = x * k, z * k
-            log('round %d: at the inner edge (%.1f cm) — clamp to 14.1 cm and stop refining' % (i, r * 100)); break
+            k = clamp / max(r, 1e-6); x, z = x * k, z * k
+            log('round %d: at the inner edge (%.1f cm) — clamp to %.1f cm and stop refining' % (i, r * 100, clamp * 100)); break
         if not look:
-            log('round %d: (%.3f, %.3f) is out of reach' % (i, x, z)); return None
+            log('round %d: (%.3f, %.3f) r=%.1f cm is out of reach: no camera look pose (grasp pose there: %s)'
+                % (i, x, z, r * 100, 'yes' if grasp_poses(r)[1] else 'no')); return None
         move_fn(s1, look)
         img = shoot_fn()
         if not img:
             log('round %d: no camera frame' % i); return None
         W, H, px = img
+        archive(img, 'round%d' % i, s1, look)
         f = (W / 2) / math.tan(math.radians(FOV / 2))
         b = blob(px, W, H, rot180, want)
         if not b:
-            log('round %d: no %s in view at base %d — keep the surveyed position' % (i, want or 'green/blue', s1)); break
+            rj = LAST_REJ.get('blue')
+            log('round %d: no %s in view at base %d — keep the surveyed position%s' % (i, want or 'green/blue', s1,
+                (' (blue-hued px below the value floor: %d, value %.2f-%.2f)' % rj) if (want != 'green' and rj and rj[0] >= 20) else '')); break
         u, v, color, n, box = b
         c, d3, l, up = cam_frame(s1, look)
         ray = tuple(d3[k] + l[k] * (u - W / 2) / f + up[k] * (H / 2 - v) / f for k in range(3))
@@ -500,13 +551,14 @@ def locate(move_fn=None, shoot_fn=None, rot180=False, x=0.17, z=0.0, rounds=7, l
         log('round %d: base %d look %s -> %s n=%d at (%.0f,%.0f) -> cube (%.3f, %.3f)' % (i, s1, look, color, n, u, v, nx, nz))
         # apply only 60% of the correction (applying all of it overshot left/right and oscillated; the real camera's FOV seems narrower than 60°)
         moved = math.hypot(nx - x, nz - z)
-        x, z = x + 0.6 * (nx - x), z + 0.6 * (nz - z)
+        x, z = x + TH.get('refine_gain') * (nx - x), z + TH.get('refine_gain') * (nz - z)
         if moved < 0.006:
             break
     r = math.hypot(x, z); s1 = round(90 + math.degrees(math.atan2(-z, x)))
     look, pre, grasp = poses(r)
     if not (pre and grasp):
-        log('cube at (%.3f, %.3f) cannot be grasped' % (x, z)); return None
+        log('cube at (%.3f, %.3f) r=%.1f cm cannot be grasped: no grasp pose with hand tilt 180..130 deg in %d deg steps'
+            % (x, z, r * 100, TH.get('tilt_step_deg'))); return None
     return {'x': round(x, 4), 'z': round(z, 4), 'r': round(r, 4), 'base': s1, 'look': look, 'pre': pre, 'grasp': grasp, 'color': color or want}   # clamped at the inner edge in round 0: no blob yet, the survey's color stands
 
 

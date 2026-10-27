@@ -87,6 +87,8 @@ def check_zone(base, save):
 
 
 def run(n, label):
+    if os.path.exists(os.path.join(HERE, 'learn', 'theta.json')):
+        raise SystemExit('learn/theta.json exists (a learning episode is in force): E0m must run with the human-tuned settings')
     cubes = plan(n)
     at = ','.join('%s:%d:%d' % (c, P[p][0], P[p][1]) for c, p in cubes)
     which = 'both' if len(cubes) == 2 else cubes[0][0]

@@ -3,3 +3,5 @@ __pycache__/
 color_service.log
 *.bak*
 .DS_Store
+learn/theta.json
+learn/frames/
