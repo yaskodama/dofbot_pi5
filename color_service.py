@@ -143,7 +143,10 @@ def fetch_board_frame(W=160):
     t_cap = time.time()                              # the board captures the frame (off=0) around now
     hdr = get('%s/cam?w=%d&t=%d' % (base, W, time.time() * 1000), tries=2).decode('ascii', 'ignore').split()
     if len(hdr) >= 6 and hdr[5] == 'idle':           # after a board reboot the camera is stopped -> make it start streaming
-        get('%s/cam/start?frame=3&fps=10' % base, tries=1)
+        if time.time() - state.get('cam_start_t', 0) > 20:   # once per 20 s: it used to send one every 3 s while a dead camera stayed idle
+            state['cam_start_t'] = time.time()
+            r = get('%s/cam/start?frame=3&fps=10' % base, tries=1).decode('ascii', 'ignore').strip().splitlines()
+            print('%s cam/start sent (board said: %s) -> %s' % (time.strftime('%H:%M:%S'), ' '.join(hdr), r[-1] if r else ''), flush=True)
         return None
     if len(hdr) < 6 or hdr[5] != 'streaming':
         return None

@@ -4,7 +4,7 @@
 # 1) move to the pose that looks at target (x, z) and shoot  2) back-project the centroid of blue/green pixels onto the table (cube top face y=3.5 cm)
 # 3) use that point as the new target and repeat (a blob cut off at the image edge pulls the centroid inward, so a few times)
 # Output (last line): JSON {"x":..,"z":..,"base":..,"look":[..],"pre":[..],"grasp":[..],"color":..}
-import math, json, sys, time, colorsys, urllib.request, urllib.parse, os, threading
+import math, json, re, sys, time, colorsys, urllib.request, urllib.parse, os, threading
 HTTP_LOCK = threading.Lock()    # the board's HTTP handles one request at a time (color_service plugs its own lock in here)
 
 B = 'http://192.168.3.101'
@@ -233,8 +233,17 @@ def cam_frame(s1, s):
 def shoot_board():
     """One 160x120 frame from the Xinu board -> (W, H, [(r,g,b) 0..1])"""
     time.sleep(2.2)                                                       # wait for the arm to stop
+    # The frame must be newer than the arm's arrival. Right after a camera restart the board used to hand back its
+    # previous snapshot (trials 7 and 10 of E0m: the drop-off shot showed the ceiling from the home pose), so wait
+    # until the frame counter moves on, and refuse a header whose frame length is 0 (no frame yet).
+    def frames():
+        m = re.search(r'frames=(\d+)', get('%s/cam/stat?t=%d' % (B, time.time() * 1000), tries=2).decode('ascii', 'ignore'))
+        return int(m.group(1)) if m else -1
+    n0, t_end = frames(), time.time() + 6
+    while time.time() < t_end and not (n0 >= 0 and frames() > n0 + 1):
+        time.sleep(0.4)
     hdr = get('%s/cam?w=160&t=%d' % (B, time.time() * 1000)).decode('ascii', 'ignore').split()
-    if len(hdr) < 6 or hdr[5] != 'streaming':
+    if len(hdr) < 6 or hdr[5] != 'streaming' or hdr[4] == '0':
         return None
     buf = b''
     while len(buf) < 38400:
