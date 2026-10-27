@@ -182,9 +182,23 @@ def episode_logs(e):
     return real[-6000:], cs[-9000:]
 
 
-def ask_advisor(e, st, extra=''):
+PLAIN = [r' \(blue-hued px below the value floor: [^)]*\)', r', ?blue-hued px below the value floor: [^,\n]*',
+         r'blue-hued px below the value floor: [^,\n]*', r': no camera look pose \(grasp pose there: \w+\)',
+         r': no grasp pose with hand tilt 180\.\.130 deg in \d+ deg steps', r' r=[\d.]+ cm']
+
+
+def plain(text):
+    """the log without the three diagnostic hints added for L1 (protocol L1_v1, 2026-10-28 addendum 2)"""
+    for pat in PLAIN:
+        text = re.sub(pat, '', text)
+    return re.sub(r'(survey \d+ cm base \d+: )(?=\n|$)', r'\1nothing', text)   # what the survey line said before the hint existed
+
+
+def ask_advisor(e, st, extra='', hints=True):
     import anthropic
     real, cs = episode_logs(e)
+    if not hints:
+        real, cs = plain(real), plain(cs)
     prompt = f"""{TASK}
 
 ## Settings you may change (current values)
@@ -271,6 +285,7 @@ def advise(ep):
     if e['success'] is None:
         raise SystemExit('record the visual check first: seen %s ok|ng' % ep)
     st = state()
+    state_before = json.loads(json.dumps(st))
     ans, use = ask_advisor(e, st)
     rec = {'ep': ep, 't': time.strftime('%Y-%m-%dT%H:%M:%S'), 'model': MODEL, 'answer': ans, 'usage': use, 'tries': []}
     change = {k: v for k, v in (ans.get('change') or {}).items()}
@@ -290,6 +305,11 @@ def advise(ep):
                                      + json.dumps(change) + '\nReasons: ' + '; '.join(reasons) + '\nPropose again (or no change).\n')
             rec['revision'] = {'answer': ans2, 'usage': use2}
             change = dict(ans2.get('change') or {})
+    try:                                                   # same episode, logs without the added hints: recorded, never adopted
+        ans_p, use_p = ask_advisor(e, state_before, hints=False)
+        rec['plain'] = {'answer': ans_p, 'usage': use_p}
+    except Exception as ex:
+        rec['plain'] = {'error': str(ex)}
     if ans.get('lesson'):
         st['lessons'].append('%s: %s' % (ep, ans['lesson']))
     save_state(st)
