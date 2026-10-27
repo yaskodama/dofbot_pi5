@@ -16,6 +16,7 @@ ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT); sys.path.insert(0, HERE)
 import theta as TH
 import locate as L
+from logic import abduce as AB
 
 DATA = os.path.expanduser('~/paper1_sim2real/data/learn')
 EPS = os.path.join(DATA, 'episodes.jsonl')
@@ -170,7 +171,7 @@ def history_text(st, upto):
     return '\n'.join(lines) or '(none)'
 
 
-def episode_logs(e):
+def episode_logs(e, full=False):
     txt = open(os.path.join(DATA, 'logs', e['log']), errors='ignore').read()
     real = txt.split('== migrate', 1)[1] if '== migrate' in txt else txt
     a, b = e['cslog']
@@ -179,7 +180,29 @@ def episode_logs(e):
         with open(CSLOG, 'rb') as f:
             f.seek(a); cs = f.read(b - a).decode('utf-8', 'ignore')
     cs = '\n'.join(l for l in cs.splitlines() if 'not answering' not in l and 'back off' not in l)
+    if full:
+        return txt, cs
     return real[-6000:], cs[-9000:]
+
+
+def grasp_ok(r_cm, step):
+    """geometry for the logic: is there a grasp pose at r_cm when the hand tilt is searched in `step` deg steps"""
+    L.load_geo()
+    keep = dict(TH.OVERRIDE)
+    TH.OVERRIDE['tilt_step_deg'] = step
+    try:
+        return bool(L.grasp_poses(r_cm / 100.0)[1])
+    finally:
+        TH.OVERRIDE.clear(); TH.OVERRIDE.update(keep)
+
+
+def logic_facts(e, st, hints=True):
+    """facts for the logic check (addendum 2026-10-28b), from the same logs the advisor reads"""
+    txt, cs = episode_logs(e, full=True)
+    if not hints:
+        txt, cs = plain(txt), plain(cs)
+    hist = [x for x in episodes() if x['ep'] < e['ep'] and x['ep'][0] == e['ep'][0]]
+    return AB.extract(e, txt, cs, st['theta'], hist, grasp_ok=grasp_ok)
 
 
 PLAIN = [r' \(blue-hued px below the value floor: [^)]*\)', r', ?blue-hued px below the value floor: [^,\n]*',
@@ -194,11 +217,12 @@ def plain(text):
     return re.sub(r'(survey \d+ cm base \d+: )(?=\n|$)', r'\1nothing', text)   # what the survey line said before the hint existed
 
 
-def ask_advisor(e, st, extra='', hints=True):
+def ask_advisor(e, st, extra='', hints=True, fx=None):
     import anthropic
     real, cs = episode_logs(e)
     if not hints:
         real, cs = plain(real), plain(cs)
+    fx = fx or logic_facts(e, st, hints)
     prompt = f"""{TASK}
 
 ## Settings you may change (current values)
@@ -220,13 +244,19 @@ Arm board stopped during the episode: {e['board_stopped']}. Finger readbacks aft
 
 ### Camera/locator service log for this episode
 {cs}
+
+{AB.prompt_text(fx)}
 {extra}
 ## What to answer
 Diagnose this episode from the logs. Then decide whether changing the settings would make FUTURE episodes succeed more
 often. Change at most 2 settings, and only if the logs show evidence that a setting caused or risked the failure.
 Do not change settings to explain hardware stops or a misplaced cube. A change that fixes one case must not break others.
+State your explanation as hypotheses: causes from the vocabulary above, each with the extracted symptoms it explains.
+Every failure symptom must be explained, no hypothesis should be superfluous, and every setting you change must be the
+one a hypothesis blames. Your hypotheses and change are checked against the logs and earlier episodes before use.
 Answer with ONE JSON object and nothing else:
 {{"diagnosis": "...", "cause": "setting" | "hardware" | "placement_or_operator" | "unknown",
+  "hypotheses": [{{"cause": "<vocabulary>", "explains": ["<symptom>", ...]}}],
   "change": {{"<setting>": <new value>}}, "expected_effect": "...", "lesson": "<one sentence to remember, or empty>"}}"""
     c = anthropic.Anthropic()
     msg = c.messages.create(model=MODEL, max_tokens=4000, messages=[{'role': 'user', 'content': prompt}])
@@ -286,28 +316,44 @@ def advise(ep):
         raise SystemExit('record the visual check first: seen %s ok|ng' % ep)
     st = state()
     state_before = json.loads(json.dumps(st))
-    ans, use = ask_advisor(e, st)
-    rec = {'ep': ep, 't': time.strftime('%Y-%m-%dT%H:%M:%S'), 'model': MODEL, 'answer': ans, 'usage': use, 'tries': []}
+    fx = logic_facts(e, st)
+    ans, use = ask_advisor(e, st, fx=fx)
+    rec = {'ep': ep, 't': time.strftime('%Y-%m-%dT%H:%M:%S'), 'model': MODEL, 'answer': ans, 'usage': use, 'tries': [],
+           'facts': fx}
     change = {k: v for k, v in (ans.get('change') or {}).items()}
-    for attempt in (1, 2):
-        if not change:
-            rec['tries'].append({'change': {}, 'gate': 'no change proposed'}); break
+    if change:                                             # LLM alone (no logic check): what the θ gate would have done
         new = dict(st['theta']); new.update(change)
-        ok, reasons, info = gate(st['theta'], new)
-        rec['tries'].append({'change': change, 'pass': ok, 'reasons': reasons, 'info': info})
-        print('proposal %s -> gate %s %s %s' % (change, 'PASS' if ok else 'REJECT', reasons, info))
+        ok0, r0, i0 = gate(st['theta'], new)
+        rec['llm_only'] = {'change': change, 'pass': ok0, 'reasons': r0, 'info': i0}
+    cur = ans
+    for attempt in (1, 2):
+        lg = AB.check(fx, cur)                             # the advisor's reasoning, checked by abduction (rules.pl)
+        print('logic %s %s  (logic alone: %s)' % ('PASS' if lg['pass'] else 'REJECT', lg['problems'], lg['explanations']))
+        if not change:
+            rec['tries'].append({'change': {}, 'logic': lg, 'gate': 'no change proposed'}); break
+        new = dict(st['theta']); new.update(change)
+        if lg['pass']:
+            ok, reasons, info = gate(st['theta'], new)
+            print('proposal %s -> gate %s %s %s' % (change, 'PASS' if ok else 'REJECT', reasons, info))
+        else:
+            ok, reasons, info = False, ['logic: ' + p for p in lg['problems']], {}
+        rec['tries'].append({'change': change, 'pass': ok, 'reasons': reasons, 'info': info, 'logic': lg})
         if ok:
-            st['adopted'].append({'ep': ep, 'change': change, 'why': ans.get('diagnosis', ''), 'gate': info})
+            st['adopted'].append({'ep': ep, 'change': change, 'why': cur.get('diagnosis', ''), 'gate': info,
+                                  'hypotheses': cur.get('hypotheses')})
             st['theta'] = new
             break
-        if attempt == 1:                                   # one revision with the gate's reasons
-            ans2, use2 = ask_advisor(e, st, extra='\n## Your previous proposal was REJECTED by the settings gate\n'
-                                     + json.dumps(change) + '\nReasons: ' + '; '.join(reasons) + '\nPropose again (or no change).\n')
+        if attempt == 1:                                   # one revision with the logic's or the gate's reasons
+            ans2, use2 = ask_advisor(e, st, fx=fx, extra='\n## Your previous proposal was REJECTED\n'
+                                     + json.dumps({'hypotheses': cur.get('hypotheses'), 'change': change})
+                                     + '\nReasons: ' + '; '.join(reasons) + '\nPropose again (or no change).\n')
             rec['revision'] = {'answer': ans2, 'usage': use2}
+            cur = ans2
             change = dict(ans2.get('change') or {})
     try:                                                   # same episode, logs without the added hints: recorded, never adopted
-        ans_p, use_p = ask_advisor(e, state_before, hints=False)
-        rec['plain'] = {'answer': ans_p, 'usage': use_p}
+        fx_p = logic_facts(e, state_before, hints=False)
+        ans_p, use_p = ask_advisor(e, state_before, hints=False, fx=fx_p)
+        rec['plain'] = {'answer': ans_p, 'usage': use_p, 'logic': AB.check(fx_p, ans_p)}
     except Exception as ex:
         rec['plain'] = {'error': str(ex)}
     if ans.get('lesson'):
