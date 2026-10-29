@@ -5,3 +5,4 @@ color_service.log
 .DS_Store
 learn/theta.json
 learn/frames/
+.last_base

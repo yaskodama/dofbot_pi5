@@ -29,11 +29,31 @@ def plan(n):
     raise SystemExit('trial number must be 1..30')
 
 
+LASTBASE = os.path.join(HERE, '.last_base')     # base angle of the last pose set here (the arm may be low there)
+
+
+def safe_move(base, s, ms=2500):
+    """Never swing the base while the arm is low (2026-10-29: a low sweep knocked a placed cube):
+    raise straight up where the base is now, turn the base up there, then go down to s."""
+    try:
+        b0 = int(open(LASTBASE).read())
+    except (OSError, ValueError):
+        b0 = None
+    up = [90, 90, 90]
+    if b0 is not None and b0 != base:
+        L.move(b0, up, 2000, 30); time.sleep(2.3)
+        L.move(base, up, 2000, 30); time.sleep(2.3)
+    elif b0 is None:
+        L.move(base, up, 2500, 30); time.sleep(2.8)   # unknown start: one move (as before) but only to the upright pose
+    L.move(base, s, ms, 30); time.sleep(ms / 1000 + 0.3)
+    open(LASTBASE, 'w').write(str(base))
+
+
 def point(n, k):
     color, pos = plan(n)[k - 1]
     r, base = P[pos]
     s = L.point_pose(r / 100.0)
-    L.move(base, s, 2500, 30)
+    safe_move(base, s)
     print('trial %d: put the %s cube under the fingertip (%s: %d cm, base %d deg)' % (n, color, pos, r, base))
 
 
@@ -65,7 +85,7 @@ def check_zone(base, save):
     img, look = None, L.poses(0.17)[0]
     for attempt in range(3):           # trial 5: right after the dock reloaded the actor the first move said ok but the arm stayed home
         try:
-            L.move(base, look, 2500, 30)
+            safe_move(base, look)
             time.sleep(3.5)
             if L.check_pose(base, look) is False:
                 continue
@@ -97,7 +117,7 @@ def run(n, label):
     tag = label or str(n)
     log = os.path.join(DATA, 'logs', 'trial%s.log' % tag)
     summ = os.path.join(DATA, 'logs', 'trial%s.json' % tag)
-    L.move(90, [90, 90, 90], 2000, 30)                     # out of the way before the agent arrives
+    safe_move(90, [90, 90, 90], 2000)                      # out of the way before the agent arrives (lift first)
     time.sleep(2.2)
     ver0 = L.arm_udp('ver', tries=3)
     t0 = time.time()
@@ -124,7 +144,7 @@ def run(n, label):
         cam = cam_on()                                     # the board's camera sometimes stops by the end of a run (cause unknown)
         right = check_zone(150, os.path.join(DATA, 'logs', 'trial%s_zone150.ppm' % tag))   # green drop-off spot
         left = check_zone(30, os.path.join(DATA, 'logs', 'trial%s_zone30.ppm' % tag))      # blue drop-off spot
-        L.move(90, [90, 90, 90], 2500, 30)
+        safe_move(90, [90, 90, 90])
     want = {c for c, _ in cubes}
     cam_ok = (('green' not in want) or right == 'green') and (('blue' not in want) or left == 'blue')
     g = s.get('gate') or {}
@@ -167,7 +187,7 @@ if __name__ == '__main__':
         cam_on()
         r = check_zone(150, os.path.join(DATA, 'logs', 'trial%s_zone150.ppm' % sys.argv[2]))
         l = check_zone(30, os.path.join(DATA, 'logs', 'trial%s_zone30.ppm' % sys.argv[2]))
-        L.move(90, [90, 90, 90], 2500, 30)
+        safe_move(90, [90, 90, 90])
         rows = [json.loads(x) for x in open(OUT)]
         for x in reversed(rows):
             if x['label'] == sys.argv[2]:

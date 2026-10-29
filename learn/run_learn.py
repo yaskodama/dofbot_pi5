@@ -66,7 +66,8 @@ def point(ep, k=1):
     _, _, color, pos = sched(ep)
     r, base = POS[pos]
     s = L.point_pose(r / 100.0)
-    L.move(base, s, 2500, 30)
+    from run_e0m import safe_move
+    safe_move(base, s)
     print('episode %s: put the %s cube under the fingertip (%s: %.1f cm, base %d deg)' % (ep, color, pos, r, base))
 
 
@@ -80,8 +81,8 @@ def run(ep):
     summ = os.path.join(DATA, 'logs', '%s.json' % ep)
     TH.write(st['theta'], ep)                              # θ in force for this episode (locate.py reads it)
     try:
-        L.move(90, [90, 90, 90], 2000, 30)
-        time.sleep(2.2)
+        from run_e0m import safe_move
+        safe_move(90, [90, 90, 90], 2000)                  # lift first, then turn (never sweep low over the cubes)
         ver0 = L.arm_udp('ver', tries=3)
         cs0 = os.path.getsize(CSLOG) if os.path.exists(CSLOG) else 0
         t0 = time.time()
@@ -113,7 +114,8 @@ def run(ep):
     else:
         cam_on()
         zone = check_zone(150 if color == 'green' else 30, os.path.join(DATA, 'logs', '%s_zone.ppm' % ep))
-        L.move(90, [90, 90, 90], 2500, 30)
+        from run_e0m import safe_move
+        safe_move(90, [90, 90, 90])
     g = s.get('gate') or {}
     rec = {'ep': ep, 'mode': mode, 'color': color, 'pos': pos, 'r_cm': r, 'base': base,
            't_start': time.strftime('%Y-%m-%dT%H:%M:%S', time.localtime(t0)), 'minutes': round((t1 - t0) / 60, 2),
