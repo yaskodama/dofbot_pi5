@@ -42,6 +42,9 @@ LEARN_B = [('green', 'H3'), ('blue', 'H2'), ('green', 'H1'), ('blue', 'P2'),
 SCHED += ([('B%02d' % (i + 1), 'pre', c, p) for i, (c, p) in enumerate(PRE_B)] +
           [('B%02d' % (i + 4), 'learn', c, p) for i, (c, p) in enumerate(LEARN_B)] +
           [('B%02d' % (i + 12), 'post', c, p) for i, (c, p) in enumerate(PRE_B)])
+# Control for Phase B's post (addendum g, 2026-10-30, decided before K01): the same three as B12-B14, no advice,
+# θ fixed at θ0 (Phase B's starting θ) instead of the learned θ.
+SCHED += [('K%02d' % (i + 1), 'control', c, p) for i, (c, p) in enumerate(PRE_B)]
 
 
 def sched(ep):
@@ -87,6 +90,8 @@ def run(ep):
     os.makedirs(os.path.join(DATA, 'logs'), exist_ok=True)
     log = os.path.join(DATA, 'logs', '%s.log' % ep)
     summ = os.path.join(DATA, 'logs', '%s.json' % ep)
+    if mode == 'control':                                  # control episodes run at θ0, not the learned θ (addendum g)
+        st = dict(st, theta={k: v[1] for k, v in TH.SCHEMA.items()})
     TH.write(st['theta'], ep)                              # θ in force for this episode (locate.py reads it)
     try:
         from run_e0m import safe_move
