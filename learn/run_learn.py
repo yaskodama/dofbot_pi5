@@ -26,14 +26,22 @@ CSLOG = os.path.join(ROOT, 'color_service.log')
 MODEL = 'claude-opus-5-5'
 
 POS = {'P1': (17, 90), 'P2': (15, 70), 'P3': (20, 110), 'P4': (17, 55), 'P5': (20, 125),
-       'H2': (15, 110), 'H3': (14.5, 90)}          # (cm from the base axis, base deg); H* = near the inner edge
+       'H2': (15, 110), 'H3': (14.5, 90),           # (cm from the base axis, base deg); H* = near the inner edge
+       'H1': (14.5, 70), 'H4': (14.5, 110)}         # added for Phase B (protocol L1_v1 addendum e, 2026-10-30)
 PRE_A = [('blue', 'P2'), ('green', 'H3'), ('blue', 'H2'), ('green', 'P2'), ('blue', 'P4')]
 LEARN_A = [('blue', 'P2'), ('green', 'H3'), ('blue', 'H2'), ('green', 'P1'), ('blue', 'P3'),
            ('green', 'P2'), ('blue', 'H3'), ('green', 'H2'), ('blue', 'P5'), ('green', 'P4')]
 SCHED = ([('A%02d' % (i + 1), 'pre', c, p) for i, (c, p) in enumerate(PRE_A)] +
          [('A%02d' % (i + 6), 'learn', c, p) for i, (c, p) in enumerate(LEARN_A)] +
          [('A%02d' % (i + 16), 'post', c, p) for i, (c, p) in enumerate(PRE_A)])
-# Phase B (a new condition, decided before B01 and appended to the protocol) is added here then.
+# Phase B (addendum e, 2026-10-30, decided before B01): the inner edge only (14.5-15 cm), where every non-board failure of
+# Phase A happened. Starts from Phase A's final θ (= θ0) and keeps the lessons. post repeats pre.
+PRE_B = [('green', 'H3'), ('blue', 'H2'), ('blue', 'P2')]
+LEARN_B = [('green', 'H3'), ('blue', 'H2'), ('green', 'H1'), ('blue', 'P2'),
+           ('green', 'H2'), ('blue', 'H3'), ('green', 'P2'), ('blue', 'H4')]
+SCHED += ([('B%02d' % (i + 1), 'pre', c, p) for i, (c, p) in enumerate(PRE_B)] +
+          [('B%02d' % (i + 4), 'learn', c, p) for i, (c, p) in enumerate(LEARN_B)] +
+          [('B%02d' % (i + 12), 'post', c, p) for i, (c, p) in enumerate(PRE_B)])
 
 
 def sched(ep):
