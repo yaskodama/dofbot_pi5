@@ -27,6 +27,10 @@ SCHEMA = {
                        'fraction of the camera-based position correction applied per refinement round'),
     'refine_rounds':  (7, 7, 3, 10, 'int',
                        'maximum number of camera refinement rounds before gripping'),
+    # added 2026-10-30 after A07 (protocol L1_v1, addendum c): was the fixed REACH[0] = 13.5 cm in locate.py
+    'survey_inner_cm': (13.5, 13.5, 12.5, 14.5, 'float',
+                       'the survey (and the go-back look after a glimpse) discards a cube whose estimated radius is closer '
+                       'than this; a grasp pose exists from 12.5 cm, a camera look pose only from about 13.8 cm'),
 }
 
 _cache = {'mtime': None, 'vals': {}}

@@ -15,6 +15,8 @@ CAUSES = {
     'green_sat_floor_too_high': 'green_s_min is above the saturation of the green cube in this light',
     'blob_size_floor_too_high': 'min_blob_frac is larger than the cube as seen from the camera',
     'inner_edge_unclamped': 'the estimate fell inside the camera-reachable radius and the robot gave up (inner_clamp_cm off or too small)',
+    'survey_inner_too_far': 'the survey (or the go-back look after a glimpse) saw the cube but discarded it because its estimate '
+                            'was closer than survey_inner_cm',
     'tilt_step_too_coarse': 'the grasp-pose search skipped the hand tilt that would have worked (tilt_step_deg too large)',
     'refine_too_weak': 'the camera refinement had not converged when it stopped (refine_gain or refine_rounds too small)',
     'refine_overshoot': 'the camera refinement oscillated around the cube (refine_gain too large)',
@@ -51,11 +53,13 @@ def real_parts(real_log, cs_log):
     """the real-arm part of the run log and of the locator log"""
     m = real_log.find('== migrate -> Xinu on the DOFBOT')
     real = real_log[m:] if m >= 0 else real_log
-    cs = '\n'.join(l for l in cs_log.splitlines() if '(sim)' not in l and ' sim -> ' not in l)
+    # only the locator's own real-arm lines: the HTTP access lines repeat the PREVIOUS locate's last message at their end
+    # (found 2026-10-30 at A09: a give-up from A08 showed up in A09's window)
+    cs = '\n'.join(l for l in cs_log.splitlines() if l.lstrip().startswith('locate(real)'))
     return real, cs
 
 
-def extract(e, real_log, cs_log, theta, history, grasp_ok=None):
+def extract(e, real_log, cs_log, theta, history, grasp_ok=None, defaults=None, past_signs=None):
     """facts from the logs. e: the episode record (color, r_cm, base, success, real_placed, board_stopped).
     history: earlier episode records (with their theta). grasp_ok(r_cm, step) -> bool (geometry; None = unknown)"""
     real, cs = real_parts(real_log, cs_log)
@@ -79,6 +83,15 @@ def extract(e, real_log, cs_log, theta, history, grasp_ok=None):
         for s in range(1, 11):
             if grasp_ok and grasp_ok(r, s):
                 ev.append('grasp_ok(%.1f, %d)' % (r, s))
+    # cubes of this episode's color the survey saw but discarded as closer than its inner limit (addendum c, 2026-10-30)
+    lim = float(theta.get('survey_inner_cm', 13.5))
+    col = e['color']
+    drop = [float(r) for r in re.findall(r'%s\(skip ([\d.]+)cm\)' % col, cs)]
+    drop += [float(r) for r in re.findall(r'glimpse dropped: %s at ([\d.]+) cm is inside the survey limit' % col, cs)]
+    if 'glimpse confirmed: %s' % col not in cs and 'glimpse dropped: %s' % col not in cs:      # logs from before the drop line existed
+        drop += [float(r) for r in re.findall(r'glimpse: %s at ([\d.]+) cm' % col, cs)]
+    for r in sorted(set(round(r, 1) for r in drop if r < lim)):
+        ev.append('dropped_inside(%.1f)' % r)
     est = [(float(x), float(z)) for x, z in re.findall(r'round \d+: base \d+ look .*?-> cube \((-?[\d.]+), (-?[\d.]+)\)', cs)]
     rounds = theta.get('refine_rounds', 7)
     last = cs[cs.rfind('round 0:'):] if 'round 0:' in cs else ''
@@ -108,15 +121,25 @@ def extract(e, real_log, cs_log, theta, history, grasp_ok=None):
     if bb:
         sym.append('risk(blue_floor)')
     sym = list(dict.fromkeys(sym)); ev = list(dict.fromkeys(ev))
+    # signs: what the logs show whatever the outcome (a success can contain a give-up that a later sweep recovered from).
+    # Used for earlier episodes: a success is evidence against a cause only if that cause's sign is absent (addendum d)
+    signs = ['gave_up_reach(%.1f)' % r for r, _ in gave] + ['no_grasp(%.1f)' % r for r in nog]
+    signs += [x for x in ev if x.startswith(('dropped_inside(', 'blue_below_floor(', 'refine_unconverged('))]
+    if re.search(r'fingers closed on nothing|held=no', real):
+        signs.append('empty_grip')
+    signs = list(dict.fromkeys(signs))
     F += ['sym(%s).' % s for s in sym] + ['ev(%s).' % x for x in ev]
     for h in history:
         if h.get('success') is None:
             continue
+        h = dict(h, theta=dict(defaults or {}, **(h.get('theta') or {})))   # settings added later had their θ0 value then
         F.append('past(%s, %s, %s, %s, %s).' % (h['ep'].lower(), 'ok' if h['success'] else 'ng', h['color'],
                                                 _num(float(h['r_cm'])), h['base']))
         for k, v in (h.get('theta') or {}).items():
             F.append('past_setting(%s, %s, %s).' % (h['ep'].lower(), k, _val(k, v)))
-    return {'facts': F, 'symptoms': sym, 'evidence': ev}
+        for x in (past_signs or {}).get(h['ep'], []):
+            F.append('past_sign(%s, %s).' % (h['ep'].lower(), x))
+    return {'facts': F, 'symptoms': sym, 'evidence': ev, 'signs': signs}
 
 
 def _sym_term(s, known):

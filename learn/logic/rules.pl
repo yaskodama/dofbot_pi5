@@ -9,9 +9,9 @@
 % the hypothesis implies, and the new value would remove the observed cause (e.g. it recovers the rejected blue pixels).
 %
 % Facts (written by abduce.py from the logs):  color/1, at/2 (cm, deg), setting/2, sym/1, ev/1,
-%   past/5 (Ep, ok|ng, Color, Rcm, Base), past_setting/3; the advisor's answer: hyp/1, claims/2, change/2.
+%   past/5 (Ep, ok|ng, Color, Rcm, Base), past_setting/3, past_sign/2 (what an earlier episode's logs show); the advisor's answer: hyp/1, claims/2, change/2.
 :- discontiguous explains/2.
-:- dynamic color/1, at/2, setting/2, sym/1, ev/1, past/5, past_setting/3, hyp/1, claims/2, change/2.
+:- dynamic color/1, at/2, setting/2, sym/1, ev/1, past/5, past_setting/3, past_sign/2, hyp/1, claims/2, change/2.
 
 % ---- the vocabulary of causes ----
 % setting causes: Cause, the setting it blames, the direction a fix must take
@@ -19,6 +19,7 @@ setting_cause(blue_floor_too_high,      blue_v_min,     down).
 setting_cause(green_sat_floor_too_high, green_s_min,    down).
 setting_cause(blob_size_floor_too_high, min_blob_frac,  down).
 setting_cause(inner_edge_unclamped,     inner_clamp_cm, up).
+setting_cause(survey_inner_too_far,     survey_inner_cm, down).   % addendum c (2026-10-30)
 setting_cause(tilt_step_too_coarse,     tilt_step_deg,  down).
 setting_cause(refine_too_weak,          refine_gain,    up).
 setting_cause(refine_too_weak,          refine_rounds,  up).
@@ -38,6 +39,8 @@ explains(blue_floor_too_high, not_seen) :-
 explains(blue_floor_too_high, risk(blue_floor)) :- sym(risk(blue_floor)).
 explains(inner_edge_unclamped, gave_up_reach(R)) :-
     sym(gave_up_reach(R)), ev(grasp_pose_at(R)), setting(inner_clamp_cm, Cl), (Cl =:= 0 ; R >= Cl).
+explains(survey_inner_too_far, not_seen) :-                     % seen, but discarded as closer than the survey limit
+    sym(not_seen), ev(dropped_inside(R)), setting(survey_inner_cm, Lim), R < Lim.
 explains(tilt_step_too_coarse, no_grasp(R)) :-
     sym(no_grasp(R)), setting(tilt_step_deg, S), ev(grasp_ok(R, S2)), S2 < S.
 explains(refine_too_weak, empty_grip) :- sym(empty_grip), ev(refine_unconverged(_)).
@@ -50,11 +53,20 @@ explains(unknown, failed_visual) :- sym(failed_visual).
 % ---- consistency with earlier successes ----
 % blaming setting K for this case is refuted if an earlier episode on the same case (same place, and same color for
 % color settings) succeeded with K at exactly the value in force now
+% ... unless that success itself shows the sign this cause leaves (addendum d, 2026-10-30: A03 gave up at 13.7 cm in its
+% first sweep and succeeded only because the next sweep estimated 13.8 cm — a lucky success is no evidence against the cause)
 refuted(C, Ep) :-
     setting_cause(C, K, _), setting(K, V), at(R0, B0),
     past(Ep, ok, Col, R, B), past_setting(Ep, K, V),
     abs(R - R0) =< 1.0, abs(B - B0) =< 10,
-    ( color_specific(C) -> color(Col) ; true ).
+    ( color_specific(C) -> color(Col) ; true ),
+    \+ ( sign_of(C, S), past_sign(Ep, S) ).
+sign_of(inner_edge_unclamped, gave_up_reach(_)).
+sign_of(tilt_step_too_coarse, no_grasp(_)).
+sign_of(refine_too_weak, empty_grip).
+sign_of(refine_overshoot, empty_grip).
+sign_of(survey_inner_too_far, dropped_inside(_)).
+sign_of(blue_floor_too_high, blue_below_floor(_, _, _)).
 
 valid(C) :- hyp(C), \+ refuted(C, _), explains(C, _).
 
@@ -75,6 +87,8 @@ effective(blue_floor_too_high, blue_v_min, New) :- !,       % must let at least 
     ev(blue_below_floor(_, _, Vhi)), New < Vhi.
 effective(inner_edge_unclamped, inner_clamp_cm, New) :- !,  % the clamp must reach every radius where it gave up
     forall(sym(gave_up_reach(R)), New > R).
+effective(survey_inner_too_far, survey_inner_cm, New) :- !,  % the new limit must keep at least one discarded sighting
+    ev(dropped_inside(R)), New =< R.
 effective(tilt_step_too_coarse, tilt_step_deg, New) :- !,   % the new step must find a grasp pose where none was found
     forall(sym(no_grasp(R)), ev(grasp_ok(R, New))).
 effective(_, _, _).

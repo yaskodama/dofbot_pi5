@@ -204,12 +204,23 @@ def logic_facts(e, st, hints=True):
     if not hints:
         txt, cs = plain(txt), plain(cs)
     hist = [x for x in episodes() if x['ep'] < e['ep'] and x['ep'][0] == e['ep'][0]]
-    return AB.extract(e, txt, cs, st['theta'], hist, grasp_ok=grasp_ok)
+    th0 = {k: v[1] for k, v in TH.SCHEMA.items()}
+    signs = {}                                             # what each earlier episode's logs show (addendum d)
+    for h in hist:
+        try:
+            ht, hc = episode_logs(h, full=True)
+            if not hints:
+                ht, hc = plain(ht), plain(hc)
+            signs[h['ep']] = AB.extract(h, ht, hc, dict(th0, **(h.get('theta') or {})), [])['signs']
+        except Exception:
+            pass
+    return AB.extract(e, txt, cs, dict(th0, **st['theta']), hist, grasp_ok=grasp_ok, defaults=th0, past_signs=signs)
 
 
 PLAIN = [r' \(blue-hued px below the value floor: [^)]*\)', r', ?blue-hued px below the value floor: [^,\n]*',
          r'blue-hued px below the value floor: [^,\n]*', r': no camera look pose \(grasp pose there: \w+\)',
-         r': no grasp pose with hand tilt 180\.\.130 deg in \d+ deg steps', r' r=[\d.]+ cm']
+         r': no grasp pose with hand tilt 180\.\.130 deg in \d+ deg steps', r' r=[\d.]+ cm',
+         r'\n[^\n]*glimpse (?:dropped|not confirmed)[^\n]*']                 # addendum c (2026-10-30)
 
 
 def plain(text):

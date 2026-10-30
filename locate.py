@@ -395,7 +395,11 @@ def check_pose(s1, s, tol=6):
 # Previously each search started from the same spot and chased the first thing seen, so a second cube or one slightly off was missed.
 SURVEY = [(0.16, yy) for yy in (-40, -13, 13, 40)] + [(0.21, yy) for yy in (40, 13, -13, -40)]
 PLACES = [(0.17, 150), (0.17, 30)]            # drop-off spots (cubes placed here are not counted)
-REACH = (0.135, 0.235)
+REACH = (0.135, 0.235)                          # REACH[0] is now θ survey_inner_cm (2026-10-30, L1 addendum c); see reach_lo()
+
+
+def reach_lo():
+    return TH.get('survey_inner_cm') / 100.0
 
 
 def world_of(u, v, s1, look, W, H):
@@ -456,7 +460,7 @@ def survey(move_fn, shoot_fn, rot180=False, log=print, glimpse_fn=None, want=Non
             x, z = world_of(b[0], b[1], s1, look, W, H)
             rr = math.hypot(x, z)
             seen_uv.append((col, b[0], b[1], s1))
-            if near_place(x, z) or not (REACH[0] <= rr <= REACH[1]):
+            if near_place(x, z) or not (reach_lo() <= rr <= REACH[1]):
                 seen.append('%s(skip %.1fcm)' % (col, rr * 100)); continue
             for d in found:                                  # within 3 cm = same cube
                 if d['color'] == col and math.hypot(d['x'] - x, d['z'] - z) < 0.03:
@@ -496,10 +500,16 @@ def survey(move_fn, shoot_fn, rot180=False, log=print, glimpse_fn=None, want=Non
         b = blob(img[2], img[0], img[1], rot180, g['color']) if img else None
         if b:
             x, z = world_of(b[0], b[1], s1, look, img[0], img[1])
-            if not near_place(x, z) and REACH[0] <= math.hypot(x, z) <= REACH[1]:
+            if not near_place(x, z) and reach_lo() <= math.hypot(x, z) <= REACH[1]:
                 found.append({'color': g['color'], 'x': x, 'z': z, 'n': b[3], 'views': 1})
                 have.add(g['color'])
                 log('glimpse confirmed: %s at %.1f cm' % (g['color'], math.hypot(x, z) * 100))
+            elif math.hypot(x, z) < reach_lo():
+                log('glimpse dropped: %s at %.1f cm is inside the survey limit %.1f cm' % (g['color'], math.hypot(x, z) * 100, reach_lo() * 100))
+            else:
+                log('glimpse dropped: %s at %.1f cm (drop-off spot or beyond reach)' % (g['color'], math.hypot(x, z) * 100))
+        else:
+            log('glimpse not confirmed: no %s in view at base %d' % (g['color'], s1))
     found.sort(key=lambda d: -d['n'])
     log('survey result: %s (glimpses %d)' % (['%s %.1fcm base %d' % (d['color'], math.hypot(d['x'], d['z']) * 100,
                                   round(90 + math.degrees(math.atan2(-d['z'], d['x'])))) for d in found], len(glimpses)))
