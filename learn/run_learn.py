@@ -334,7 +334,7 @@ def gate(old, new):
     return not reasons, reasons, {'frames': n, 'gained_detections': gained, 'grasp_radii_lost': lost}
 
 
-def advise(ep):
+def advise(ep, plain=False):
     e = [x for x in episodes() if x['ep'] == ep][-1]
     if e['mode'] != 'learn':
         raise SystemExit('%s is a %s episode: no advice (θ stays frozen)' % (ep, e['mode']))
@@ -376,12 +376,15 @@ def advise(ep):
             rec['revision'] = {'answer': ans2, 'usage': use2}
             cur = ans2
             change = dict(ans2.get('change') or {})
-    try:                                                   # same episode, logs without the added hints: recorded, never adopted
-        fx_p = logic_facts(e, state_before, hints=False)
-        ans_p, use_p = ask_advisor(e, state_before, hints=False, fx=fx_p)
-        rec['plain'] = {'answer': ans_p, 'usage': use_p, 'logic': AB.check(fx_p, ans_p)}
-    except Exception as ex:
-        rec['plain'] = {'error': str(ex)}
+    if not plain:                                          # the no-hint comparison costs as much as the advice itself: only on request (addendum i)
+        rec['plain'] = {'skipped': 'not requested (advise EP --plain)'}
+    else:
+        try:                                               # same episode, logs without the added hints: recorded, never adopted
+            fx_p = logic_facts(e, state_before, hints=False)
+            ans_p, use_p = ask_advisor(e, state_before, hints=False, fx=fx_p)
+            rec['plain'] = {'answer': ans_p, 'usage': use_p, 'logic': AB.check(fx_p, ans_p)}
+        except Exception as ex:
+            rec['plain'] = {'error': str(ex)}
     if ans.get('lesson'):
         st['lessons'].append('%s: %s' % (ep, ans['lesson']))
     save_state(st)
@@ -404,5 +407,5 @@ if __name__ == '__main__':
     if cmd == 'point': point(sys.argv[2], int(sys.argv[3]) if len(sys.argv) > 3 else 1)
     elif cmd == 'run': run(sys.argv[2])
     elif cmd == 'seen': seen(sys.argv[2], sys.argv[3], ' '.join(sys.argv[4:]))
-    elif cmd == 'advise': advise(sys.argv[2])
+    elif cmd == 'advise': advise(sys.argv[2], plain='--plain' in sys.argv[3:])
     elif cmd == 'status': status()
