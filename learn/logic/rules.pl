@@ -11,6 +11,7 @@
 % Facts (written by abduce.py from the logs):  color/1, at/2 (cm, deg), setting/2, sym/1, ev/1,
 %   past/5 (Ep, ok|ng, Color, Rcm, Base), past_setting/3, past_sign/2 (what an earlier episode's logs show); the advisor's answer: hyp/1, claims/2, change/2.
 :- discontiguous explains/2.
+:- dynamic est/2, clamped/1.
 :- dynamic color/1, at/2, setting/2, sym/1, ev/1, past/5, past_setting/3, past_sign/2, hyp/1, claims/2, change/2.
 
 % ---- the vocabulary of causes ----
@@ -24,6 +25,9 @@ setting_cause(tilt_step_too_coarse,     tilt_step_deg,  down).
 setting_cause(refine_too_weak,          refine_gain,    up).
 setting_cause(refine_too_weak,          refine_rounds,  up).
 setting_cause(refine_overshoot,         refine_gain,    down).
+setting_cause(inner_angle_unrefined,    inner_refine_angle, up).   % C-1 (2026-11-01)
+setting_cause(inner_radius_underread,   inner_r_bias_cm,    up).   % C-1 (2026-11-01)
+setting_cause(inner_out_of_view,        survey_inner_ring_cm, up). % C-4 (2026-11-03)
 other_cause(board_stop).            % the arm's servo board stopped (hardware)
 other_cause(grip_miss).             % the fingers closed beside the cube (physical: slip, push, offset)
 other_cause(operator_placement).    % the cube was not where the schedule says, or the verdict disagrees with the logs
@@ -45,6 +49,17 @@ explains(tilt_step_too_coarse, no_grasp(R)) :-
     sym(no_grasp(R)), setting(tilt_step_deg, S), ev(grasp_ok(R, S2)), S2 < S.
 explains(refine_too_weak, empty_grip) :- sym(empty_grip), ev(refine_unconverged(_)).
 explains(refine_overshoot, empty_grip) :- sym(empty_grip), ev(refine_unconverged(_)).
+% C-1 (2026-11-01): the estimate is compared with the scheduled place at/2 (the operator puts the cube there)
+explains(inner_angle_unrefined, empty_grip) :-                  % clamped, so the survey's base angle was never corrected
+    sym(empty_grip), ev(clamped(_)), at(_, B0), ev(est(_, B)), abs(B - B0) >= 5,
+    setting(inner_refine_angle, N), N < 3.
+explains(inner_radius_underread, not_seen) :-                   % discarded inside the limit, and read short
+    sym(not_seen), ev(dropped_inside(R)), setting(survey_inner_cm, Lim), R < Lim, at(R0, _), R0 - R >= 0.5.
+explains(inner_radius_underread, gave_up_reach(R)) :-
+    sym(gave_up_reach(R)), at(R0, _), R0 - R >= 0.5.
+% C-4 (2026-11-03): the cube lies at the inner edge, no look of the 16 cm row saw it (only glimpses while moving), and there is no inner row
+explains(inner_out_of_view, not_seen) :-
+    sym(not_seen), ev(survey_row_missed(_)), setting(survey_inner_ring_cm, Rg), Rg =:= 0.
 explains(board_stop, S) :- sym(board_stop), sym(S), S \= risk(_).
 explains(grip_miss, empty_grip) :- sym(empty_grip).
 explains(operator_placement, S) :- sym(S), memberchk(S, [not_seen, wrong_zone, failed_visual, empty_grip]).
@@ -67,6 +82,10 @@ sign_of(refine_too_weak, empty_grip).
 sign_of(refine_overshoot, empty_grip).
 sign_of(survey_inner_too_far, dropped_inside(_)).
 sign_of(blue_floor_too_high, blue_below_floor(_, _, _)).
+sign_of(inner_angle_unrefined, clamped(_)).
+sign_of(inner_radius_underread, dropped_inside(_)).
+sign_of(inner_radius_underread, gave_up_reach(_)).
+sign_of(inner_out_of_view, survey_row_missed(_)).
 
 valid(C) :- hyp(C), \+ refuted(C, _), explains(C, _).
 
@@ -91,6 +110,16 @@ effective(survey_inner_too_far, survey_inner_cm, New) :- !,  % the new limit mus
     ev(dropped_inside(R)), New =< R.
 effective(tilt_step_too_coarse, tilt_step_deg, New) :- !,   % the new step must find a grasp pose where none was found
     forall(sym(no_grasp(R)), ev(grasp_ok(R, New))).
+effective(inner_angle_unrefined, inner_refine_angle, New) :- !, New >= 1.
+effective(inner_radius_underread, inner_r_bias_cm, New) :- !,   % must reach the limit / a look pose, must not overshoot the truth
+    forall(sym(gave_up_reach(R)), R + New >= 13.8),
+    ( sym(not_seen) -> once((ev(dropped_inside(R)), setting(survey_inner_cm, Lim), R + New >= Lim)) ; true ),
+    at(R0, _),
+    \+ ( ev(est(R1, _)), R1 + New > R0 + 1.0 ),
+    \+ ( ev(dropped_inside(R2)), R2 + New > R0 + 1.0 ),
+    \+ ( sym(gave_up_reach(R3)), R3 + New > R0 + 1.0 ).
+effective(inner_out_of_view, survey_inner_ring_cm, New) :- !,   % a look pose exists, and the row is not beyond the cube
+    New >= 13.8, at(R0, _), New =< R0.
 effective(_, _, _).
 
 % ---- abduction without the LLM: every minimal acceptable explanation (up to 2 causes) ----

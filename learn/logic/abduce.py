@@ -20,6 +20,12 @@ CAUSES = {
     'tilt_step_too_coarse': 'the grasp-pose search skipped the hand tilt that would have worked (tilt_step_deg too large)',
     'refine_too_weak': 'the camera refinement had not converged when it stopped (refine_gain or refine_rounds too small)',
     'refine_overshoot': 'the camera refinement oscillated around the cube (refine_gain too large)',
+    'inner_angle_unrefined': 'the estimate was clamped at the inner edge, where refinement stops, and the base angle the survey '
+                             'estimated stayed off (inner_refine_angle too small)',
+    'inner_radius_underread': 'the camera estimated the cube closer than it is, so it was discarded or given up near the inner '
+                              'edge (inner_r_bias_cm too small)',
+    'inner_out_of_view': 'the cube lay at the inner edge where no look of the survey rows saw it (only glimpses while the arm moved); '
+                         'the survey has no inner row (survey_inner_ring_cm 0)',
     'board_stop': 'the arm servo board stopped (hardware)',
     'grip_miss': 'the fingers closed beside the cube although it had been located (physical: slip, push, offset)',
     'operator_placement': 'the cube was not where the schedule says, or the operator verdict disagrees with the logs',
@@ -37,7 +43,7 @@ SYMPTOMS = {
 }
 
 
-INTS = ('tilt_step_deg', 'refine_rounds')
+INTS = ('tilt_step_deg', 'refine_rounds', 'inner_refine_angle')
 
 
 def _num(x):
@@ -92,6 +98,17 @@ def extract(e, real_log, cs_log, theta, history, grasp_ok=None, defaults=None, p
         drop += [float(r) for r in re.findall(r'glimpse: %s at ([\d.]+) cm' % col, cs)]
     for r in sorted(set(round(r, 1) for r in drop if r < lim)):
         ev.append('dropped_inside(%.1f)' % r)
+    # where the survey put the cube, and inner-edge clamps (C-1, 2026-11-01); compared with the scheduled place at/2 by the rules
+    for res in re.findall(r'survey result: \[([^\]]*)\]', cs):
+        for r, b in re.findall(r"'%s ([\d.]+)cm base (\d+)'" % col, res):
+            ev.append('est(%.1f, %d)' % (float(r), int(b)))
+    for r in re.findall(r'at the inner edge \(([\d.]+) cm\) — clamp to', cs):
+        ev.append('clamped(%.1f)' % float(r))
+    # C-4 (2026-11-03): the cube is at the inner edge (scheduled <= 15 cm), the 16 cm row never saw it, only glimpses did,
+    # and no inner row was shot
+    if (float(e['r_cm']) <= 15.0 and 'survey 14 cm' not in cs and 'survey 16 cm' in cs
+            and not re.search(r'survey 16 cm base \d+: [^\n]*%s\(' % col, cs) and re.search(r'glimpse: %s at' % col, cs)):
+        ev.append('survey_row_missed(%s)' % _num(float(e['r_cm'])))
     est = [(float(x), float(z)) for x, z in re.findall(r'round \d+: base \d+ look .*?-> cube \((-?[\d.]+), (-?[\d.]+)\)', cs)]
     rounds = theta.get('refine_rounds', 7)
     last = cs[cs.rfind('round 0:'):] if 'round 0:' in cs else ''
@@ -124,7 +141,7 @@ def extract(e, real_log, cs_log, theta, history, grasp_ok=None, defaults=None, p
     # signs: what the logs show whatever the outcome (a success can contain a give-up that a later sweep recovered from).
     # Used for earlier episodes: a success is evidence against a cause only if that cause's sign is absent (addendum d)
     signs = ['gave_up_reach(%.1f)' % r for r, _ in gave] + ['no_grasp(%.1f)' % r for r in nog]
-    signs += [x for x in ev if x.startswith(('dropped_inside(', 'blue_below_floor(', 'refine_unconverged('))]
+    signs += [x for x in ev if x.startswith(('dropped_inside(', 'blue_below_floor(', 'refine_unconverged(', 'clamped(', 'survey_row_missed('))]
     if re.search(r'fingers closed on nothing|held=no', real):
         signs.append('empty_grip')
     signs = list(dict.fromkeys(signs))

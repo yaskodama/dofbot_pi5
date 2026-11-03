@@ -410,6 +410,16 @@ def world_of(u, v, s1, look, W, H):
     return c[0] + ray[0] * t, c[2] + ray[2] * t
 
 
+def debias(x, z):
+    """θ inner_r_bias_cm (C-1, 2026-11-01): push a camera estimate outward, in full inside 15 cm, fading to 0 at 17 cm"""
+    b = TH.get('inner_r_bias_cm') / 100.0
+    r = math.hypot(x, z)
+    if b <= 0 or r <= 0 or r >= 0.17:
+        return x, z
+    k = (r + b * min(1.0, (0.17 - r) / 0.02)) / r
+    return x * k, z * k
+
+
 def near_place(x, z, tol=0.045):
     for r, b in PLACES:
         yaw = math.radians(b - 90)
@@ -426,7 +436,9 @@ def survey(move_fn, shoot_fn, rot180=False, log=print, glimpse_fn=None, want=Non
     found, glimpses = [], []
     prev = None
     seen_uv = []                                   # (color, u, v, base) where in the image it appeared
-    for r, yy in SURVEY:
+    ring = TH.get('survey_inner_ring_cm') / 100.0          # θ survey_inner_ring_cm (C-3, 2026-11-03): 0 = the 8 spots only
+    spots = ([(ring, yy) for yy in (40, 20, 0, -20, -40)] if ring > 0 else []) + SURVEY
+    for r, yy in spots:
         s1 = 90 + yy
         look = poses(r)[0]
         if not look:
@@ -439,7 +451,7 @@ def survey(move_fn, shoot_fn, rot180=False, log=print, glimpse_fn=None, want=Non
                     gb = blob(gpx, gw, gh, rot180, col, min_frac=0.003)
                     if not gb:
                         continue
-                    gx, gz = world_of(gb[0], gb[1], pose[0], pose[1:4], gw, gh)
+                    gx, gz = debias(*world_of(gb[0], gb[1], pose[0], pose[1:4], gw, gh))
                     if near_place(gx, gz) or not (0.10 <= math.hypot(gx, gz) <= 0.27):
                         continue
                     glimpses.append({'color': col, 'x': gx, 'z': gz, 'n': gb[3]})
@@ -457,7 +469,7 @@ def survey(move_fn, shoot_fn, rot180=False, log=print, glimpse_fn=None, want=Non
                     n_, lo_, hi_ = LAST_REJ['blue']
                     seen.append('blue-hued px below the value floor: %d (value %.2f-%.2f)' % (n_, lo_, hi_))
                 continue
-            x, z = world_of(b[0], b[1], s1, look, W, H)
+            x, z = debias(*world_of(b[0], b[1], s1, look, W, H))
             rr = math.hypot(x, z)
             seen_uv.append((col, b[0], b[1], s1))
             if near_place(x, z) or not (reach_lo() <= rr <= REACH[1]):
@@ -489,7 +501,7 @@ def survey(move_fn, shoot_fn, rot180=False, log=print, glimpse_fn=None, want=Non
     for g in sorted(glimpses, key=lambda d: -d['n']):
         if g['color'] in have or (want and g['color'] != want):
             continue
-        rr = min(max(math.hypot(g['x'], g['z']), 0.16), 0.21)
+        rr = min(max(math.hypot(g['x'], g['z']), ring if ring > 0 else 0.16), 0.21)   # C-3: the real camera at 16 cm misses 14.5 cm
         s1 = round(90 + math.degrees(math.atan2(-g['z'], g['x'])))
         look = poses(rr)[0]
         if not look:
@@ -499,7 +511,7 @@ def survey(move_fn, shoot_fn, rot180=False, log=print, glimpse_fn=None, want=Non
         img = shoot_fn()
         b = blob(img[2], img[0], img[1], rot180, g['color']) if img else None
         if b:
-            x, z = world_of(b[0], b[1], s1, look, img[0], img[1])
+            x, z = debias(*world_of(b[0], b[1], s1, look, img[0], img[1]))
             if not near_place(x, z) and reach_lo() <= math.hypot(x, z) <= REACH[1]:
                 found.append({'color': g['color'], 'x': x, 'z': z, 'n': b[3], 'views': 1})
                 have.add(g['color'])
@@ -514,6 +526,32 @@ def survey(move_fn, shoot_fn, rot180=False, log=print, glimpse_fn=None, want=Non
     log('survey result: %s (glimpses %d)' % (['%s %.1fcm base %d' % (d['color'], math.hypot(d['x'], d['z']) * 100,
                                   round(90 + math.degrees(math.atan2(-d['z'], d['x'])))) for d in found], len(glimpses)))
     return found
+
+
+def refine_angle(move_fn, shoot_fn, rot180, x, z, rounds, want, log=print):
+    """θ inner_refine_angle (C-1, 2026-11-01): the radius stays clamped; look from the clamp radius and correct the base angle only.
+    B07 (2026-10-30): clamped at 14.5 cm with the survey's base 52-61 for a cube at 70, and three grips closed beside it"""
+    r = math.hypot(x, z)
+    look = poses(r)[0]
+    for j in range(rounds):
+        if not look:
+            break
+        s1 = round(90 + math.degrees(math.atan2(-z, x)))
+        move_fn(s1, look)
+        img = shoot_fn()
+        b = blob(img[2], img[0], img[1], rot180, want) if img else None
+        if not b:
+            log('angle round %d: no %s in view at base %d — keep base %d' % (j, want or 'green/blue', s1, s1)); break
+        archive(img, 'angle%d' % j, s1, look)
+        nx, nz = debias(*world_of(b[0], b[1], s1, look, img[0], img[1]))
+        a_old, a_new = math.atan2(-z, x), math.atan2(-nz, nx)
+        a = a_old + TH.get('refine_gain') * (a_new - a_old)
+        x, z = r * math.cos(a), -r * math.sin(a)
+        log('angle round %d: base %d look -> cube seen at base %d -> base %d (radius kept at %.1f cm)' % (
+            j, s1, round(90 + math.degrees(a_new)), round(90 + math.degrees(a)), r * 100))
+        if abs(math.degrees(a_new - a_old)) < 1.0:
+            break
+    return x, z
 
 
 def locate(move_fn=None, shoot_fn=None, rot180=False, x=0.17, z=0.0, rounds=None, log=print, want=None, glimpse_fn=None):
@@ -537,7 +575,11 @@ def locate(move_fn=None, shoot_fn=None, rot180=False, x=0.17, z=0.0, rounds=None
             # Inner edge: if it closes in to where no look pose is feasible, hold at inner_clamp_cm (human-tuned 14.1) and go grip
             # (2026-09-29: at P2 (15 cm) the estimate became 13.6 cm and it gave up despite having found it. A grip pose is feasible even at 13 cm)
             k = clamp / max(r, 1e-6); x, z = x * k, z * k
-            log('round %d: at the inner edge (%.1f cm) — clamp to %.1f cm and stop refining' % (i, r * 100, clamp * 100)); break
+            n_ang = TH.get('inner_refine_angle')
+            log('round %d: at the inner edge (%.1f cm) — clamp to %.1f cm and %s' % (
+                i, r * 100, clamp * 100, 'refine the base angle only (%d rounds)' % n_ang if n_ang else 'stop refining'))
+            x, z = refine_angle(move_fn, shoot_fn, rot180, x, z, n_ang, want, log)
+            break
         if not look:
             log('round %d: (%.3f, %.3f) r=%.1f cm is out of reach: no camera look pose (grasp pose there: %s)'
                 % (i, x, z, r * 100, 'yes' if grasp_poses(r)[1] else 'no')); return None
@@ -557,7 +599,7 @@ def locate(move_fn=None, shoot_fn=None, rot180=False, x=0.17, z=0.0, rounds=None
         c, d3, l, up = cam_frame(s1, look)
         ray = tuple(d3[k] + l[k] * (u - W / 2) / f + up[k] * (H / 2 - v) / f for k in range(3))
         t = (CUBE - c[1]) / ray[1]                                          # intersection with the cube's top face
-        nx, nz = c[0] + ray[0] * t, c[2] + ray[2] * t
+        nx, nz = debias(c[0] + ray[0] * t, c[2] + ray[2] * t)
         log('round %d: base %d look %s -> %s n=%d at (%.0f,%.0f) -> cube (%.3f, %.3f)' % (i, s1, look, color, n, u, v, nx, nz))
         # apply only 60% of the correction (applying all of it overshot left/right and oscillated; the real camera's FOV seems narrower than 60°)
         moved = math.hypot(nx - x, nz - z)

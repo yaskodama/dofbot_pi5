@@ -31,6 +31,17 @@ SCHEMA = {
     'survey_inner_cm': (13.5, 13.5, 12.5, 14.5, 'float',
                        'the survey (and the go-back look after a glimpse) discards a cube whose estimated radius is closer '
                        'than this; a grasp pose exists from 12.5 cm, a camera look pose only from about 13.8 cm'),
+    # added 2026-11-01 for C-1 (protocol C1_v1): both 0 = the behaviour before
+    'inner_refine_angle': (0, 0, 0, 3, 'int',
+                       'after the estimate is clamped at the inner edge (inner_clamp_cm), look again from the clamp radius and '
+                       'correct only the base angle, up to this many rounds; 0 = stop refining at the clamp'),
+    'inner_r_bias_cm': (0.0, 0.0, 0.0, 2.0, 'float',
+                       'added to every camera-based estimate of the cube radius: in full closer than 15 cm, fading to 0 at '
+                       '17 cm (positive = moves estimates outward); 0 = no correction'),
+    # added 2026-11-03 for C-3 (protocol C3_v1): 0 = the behaviour before
+    'survey_inner_ring_cm': (0.0, 0.0, 0.0, 15.0, 'float',
+                       'add a survey row of 5 looks (base 50-130) at this radius before the 16 cm and 21 cm rows, and make it '
+                       'the closest radius of the go-back look after a glimpse (was 16 cm); 0 = no inner row'),
 }
 
 _cache = {'mtime': None, 'vals': {}}
@@ -82,6 +93,8 @@ def check_bounds(vals):
             bad.append('%s=%s outside [%s, %s]' % (k, v, lo, hi))
         if k == 'inner_clamp_cm' and 0 < v < 13.8:
             bad.append('inner_clamp_cm=%s: must be 0 or >= 13.8 (no look pose closer than that)' % v)
+        if k == 'survey_inner_ring_cm' and 0 < v < 13.8:
+            bad.append('survey_inner_ring_cm=%s: must be 0 or >= 13.8 (no look pose closer than that)' % v)
     return bad
 
 

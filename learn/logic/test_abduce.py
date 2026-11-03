@@ -95,6 +95,32 @@ R.append(case('give-up; same spot succeeded after a give-up (A03) -> not refuted
               ANS_CL, True, hist=H_H2, signs={'A03': ['gave_up_reach(13.7)']}))
 R.append(case('give-up; earlier success showed another sign only -> refuted', EP('blue', 15, 110, False), REAL_NONE, CS_GAVE,
               ANS_CL, False, hist=H_H2, signs={'A03': ['empty_grip']}, must=['refuted']))
+# C-1 (2026-11-01): inner_refine_angle and inner_r_bias_cm (B07: P2 = 15 cm, base 70)
+TH0.update(inner_refine_angle=0, inner_r_bias_cm=0.0)
+CS_CLAMP = ("  locate(real) survey result: ['blue 13.0cm base 61'] (glimpses 3)\n"
+            "  locate(real) round 0: at the inner edge (13.0 cm) — clamp to 14.5 cm and stop refining\n")
+CS_CLAMP_OK = ("  locate(real) survey result: ['blue 13.0cm base 68'] (glimpses 3)\n"
+               "  locate(real) round 0: at the inner edge (13.0 cm) — clamp to 14.5 cm and stop refining\n")
+CS_NOCLAMP = "  locate(real) survey result: ['blue 15.1cm base 52'] (glimpses 1)\n"
+ANS_ANG = {'hypotheses': B(('inner_angle_unrefined', ['empty_grip'])), 'change': {'inner_refine_angle': 2}}
+R.append(case('clamped, base 9 deg off, empty grips -> refine angle', EP('blue', 15, 70, False), REAL_EMPTY, CS_CLAMP, ANS_ANG, True))
+R.append(case('clamped, base only 2 deg off -> no evidence', EP('blue', 15, 70, False), REAL_EMPTY, CS_CLAMP_OK, ANS_ANG, False,
+              must=['explains_nothing']))
+R.append(case('base off but never clamped -> no evidence', EP('blue', 15, 70, False), REAL_EMPTY, CS_NOCLAMP, ANS_ANG, False,
+              must=['explains_nothing']))
+R.append(case('clamped + empty grip, refine angle set to 0 (no change)', EP('blue', 15, 70, False), REAL_EMPTY, CS_CLAMP,
+              {'hypotheses': B(('inner_angle_unrefined', ['empty_grip'])), 'change': {'inner_refine_angle': 0}}, False,
+              must=['change_unsupported']))
+ANS_BIAS = lambda v, s='gave_up_reach(13.6)': {'hypotheses': B(('inner_radius_underread', [s])), 'change': {'inner_r_bias_cm': v}}
+R.append(case('give-up 13.6 for a 15 cm cube, bias 1.0', EP('blue', 15, 110, False), REAL_NONE, CS_GAVE, ANS_BIAS(1.0), True))
+R.append(case('give-up 13.6, bias 0.1 (still short of 13.8)', EP('blue', 15, 110, False), REAL_NONE, CS_GAVE, ANS_BIAS(0.1), False,
+              must=['change_unsupported']))
+R.append(case('give-up 13.6, bias 2.0 pushes past the truth +1', EP('blue', 14.5, 110, False), REAL_NONE, CS_GAVE, ANS_BIAS(2.0), False,
+              must=['change_unsupported']))
+R.append(case('dropped 13.1 inside 13.5 for 14.5 cm, bias 0.6', EP('green', 14.5, 90, False), REAL_NONE, CS_DROP,
+              ANS_BIAS(0.6, 'not_seen'), True))
+R.append(case('dropped 13.1 for a 13.4 cm cube -> not read short', EP('green', 13.4, 90, False), REAL_NONE, CS_DROP,
+              ANS_BIAS(0.6, 'not_seen'), False, must=['explains_nothing']))
 fx = A.extract(EP('blue', 15, 110, True), REAL_EMPTY, CS_GAVE, TH0, [])
 ok = set(fx['signs']) == {'gave_up_reach(13.6)', 'empty_grip'} and fx['symptoms'] == []
 print('%-4s %-44s signs=%s sym=%s' % ('ok' if ok else 'FAIL', 'signs of a success (symptoms stay empty)', fx['signs'], fx['symptoms']))
