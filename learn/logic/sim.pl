@@ -4,7 +4,7 @@
 % value_policy/2, predict/2) plus change/2. Three layers, reported separately (never summed into one score):
 %   layer 1  the conclusion: same setting, same direction, value difference over the setting's range
 %   layer 2  the parts of the reason: Jaccard of the observations (numbers equal within 0.15, near/2),
-%            of the ruled-out causes, of the predicted effects; overlap of the lessons' intervals; same value policy
+%            of the ruled-out causes specific to the case (and of all of them), of the predicted effects; overlap of the lessons' intervals; same value policy
 %   layer 3  meaning (in sim_support/2, run by argue_sim.py with only one advisor's observations as the evidence):
 %            does A's evidence alone, with the theory, derive B's change
 :- dynamic arg/2, range/3.
@@ -24,8 +24,15 @@ same_conclusion :- arg(a, change(K, _)), conclusion(K, same, _), \+ (arg(b, chan
 
 % ---- layer 2 ----
 uses_j(J)     :- findall(F, arg(a, uses(F)), A), findall(F, arg(b, uses(F)), B), jaccard(A, B, J).
-rule_out_j(J) :- findall(C, arg(a, rule_out(C, _)), A0), sort(A0, A), findall(C, arg(b, rule_out(C, _)), B0), sort(B0, B),
+rule_out_all_j(J) :- findall(C, arg(a, rule_out(C, _)), A0), sort(A0, A), findall(C, arg(b, rule_out(C, _)), B0), sort(B0, B),
                  jaccard(A, B, J).
+% addendum (2026-11-04, before freezing D_v1): count only the causes specific to this case — tied to a setting, with an
+% explains/2 rule whose head matches one of the case's symptoms (the head only: a ruled-out cause fails the rule's body,
+% that is why it was ruled out). Causes any case can rule out (board_stop, grip_miss, operator_placement) made the
+% prototype's Jaccard indistinguishable from the chance baseline.
+specific(C) :- setting_cause(C, _, _), sym(S), S \= risk(_), clause(explains(C, S0), _), S0 = S, !.
+rule_out_j(J) :- findall(C, (arg(a, rule_out(C, _)), specific(C)), A0), sort(A0, A),
+                 findall(C, (arg(b, rule_out(C, _)), specific(C)), B0), sort(B0, B), jaccard(A, B, J).
 predict_j(J)  :- findall(E, arg(a, predict(E, _)), A0), sort(A0, A), findall(E, arg(b, predict(E, _)), B0), sort(B0, B),
                  jaccard(A, B, J).
 lesson_ov(O) :-
@@ -48,6 +55,7 @@ sim_report :-
     ( same_conclusion -> print(same_conclusion(yes)) ; print(same_conclusion(no)) ), nl,
     uses_j(U), print(uses_jaccard(U)), nl,
     rule_out_j(R), print(rule_out_jaccard(R)), nl,
+    rule_out_all_j(RA), print(rule_out_all_jaccard(RA)), nl,
     lesson_ov(L), print(lesson_overlap(L)), nl,
     policy_same(P), print(policy_same(P)), nl,
     predict_j(Q), print(predict_jaccard(Q)), nl.

@@ -243,8 +243,8 @@ def plain(text):
     return re.sub(r'(survey \d+ cm base \d+: )(?=\n|$)', r'\1nothing', text)   # what the survey line said before the hint existed
 
 
-def ask_advisor(e, st, extra='', hints=True, fx=None):
-    import anthropic
+def advisor_prompt(e, st, extra='', hints=True, fx=None):
+    """the whole advisor prompt; Phase D gives the human advisor this same text (learn/argue_form.py)"""
     real, cs = episode_logs(e)
     if not hints:
         real, cs = plain(real), plain(cs)
@@ -284,12 +284,24 @@ Answer with ONE JSON object and nothing else:
 {{"diagnosis": "...", "cause": "setting" | "hardware" | "placement_or_operator" | "unknown",
   "hypotheses": [{{"cause": "<vocabulary>", "explains": ["<symptom>", ...]}}],
   "change": {{"<setting>": <new value>}}, "expected_effect": "...", "lesson": "<one sentence to remember, or empty>"}}"""
-    c = anthropic.Anthropic()
-    msg = c.messages.create(model=MODEL, max_tokens=4000, messages=[{'role': 'user', 'content': prompt}])
-    text = ''.join(b.text for b in msg.content if getattr(b, 'type', '') == 'text')
+    return prompt
+
+
+def ask_advisor(e, st, extra='', hints=True, fx=None, backend=None):
+    backend = backend or os.environ.get('ADVISOR', 'claude')   # ADVISOR=openai: D-5 (c) for every caller
+    prompt = advisor_prompt(e, st, extra, hints, fx)
+    if backend == 'openai':                       # Phase D-5 (c): the same prompt to another LLM (protocol D_v1 addendum 11/4)
+        import openai_advisor
+        text, usage = openai_advisor.call(prompt)
+    else:
+        import anthropic
+        c = anthropic.Anthropic()
+        msg = c.messages.create(model=MODEL, max_tokens=4000, messages=[{'role': 'user', 'content': prompt}])
+        text = ''.join(b.text for b in msg.content if getattr(b, 'type', '') == 'text')
+        usage = {'model': MODEL, 'in': msg.usage.input_tokens, 'out': msg.usage.output_tokens}
     m = re.search(r'\{.*\}', text, re.S)
     ans = json.loads(m.group(0)) if m else {'diagnosis': text, 'cause': 'unknown', 'change': {}}
-    return ans, {'prompt_chars': len(prompt), 'in': msg.usage.input_tokens, 'out': msg.usage.output_tokens}
+    return ans, dict(usage, prompt_chars=len(prompt))
 
 
 # ---------------- the θ gate ----------------

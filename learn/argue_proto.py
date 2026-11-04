@@ -20,6 +20,12 @@ ROOT = os.path.expanduser('~/paper1_sim2real/data')
 OUT = os.path.join(ROOT, 'argue')
 ARGUE = os.path.join(HERE, 'logic', 'argue.pl')
 CASES = {'B05': 'learn', 'B06': 'learn', 'D01': 'c3'}
+# Phase D (protocol D_v1): the recorded cases, then the new failures of D-1 (dataset d1) as they come
+D_RECORDED = {'A01': 'learn', 'A02': 'learn', 'B02': 'learn', 'B05': 'learn', 'B07': 'learn', 'C19': 'c2', 'D01': 'c3', 'K01': 'learn'}
+CASES.update(D_RECORDED)
+if os.path.exists(os.path.join(os.path.expanduser('~/paper1_sim2real/data'), 'd1', 'episodes.jsonl')):
+    CASES.update({json.loads(x)['ep']: 'd1' for x in open(os.path.expanduser('~/paper1_sim2real/data/d1/episodes.jsonl'))
+                  if json.loads(x).get('success') is False})
 TH0 = {k: v[1] for k, v in TH.SCHEMA.items()}
 
 
@@ -50,12 +56,14 @@ def context(ep):
     e = [x for x in rows(ds) if x['ep'] == ep][-1]
     if ds == 'learn':
         adv = [json.loads(l) for l in open(os.path.join(ROOT, 'learn', 'advice.jsonl'))]
-        stored = [a for a in adv if a['ep'] == ep][-1]['facts']
         order = [x['ep'] for x in rows('learn')]
         before = set(order[:order.index(ep)])
         final = json.load(open(os.path.join(ROOT, 'learn', 'state.json')))
-        st = {'theta': dict(TH0, **{k: float(v) for k, v in
-                        (re.match(r'setting\((\w+), ([\d.]+)\)\.', f).groups() for f in stored['facts'] if f.startswith('setting('))}),   # settings added later at θ0, as in C-1
+        stored = [a for a in adv if a['ep'] == ep]
+        th = ({k: float(v) for k, v in (re.match(r'setting\((\w+), ([\d.]+)\)\.', f).groups()
+                                         for f in stored[-1]['facts']['facts'] if f.startswith('setting('))}
+              if stored else (e.get('theta') or {}))      # pre-phase and control episodes had no advice: θ as recorded
+        st = {'theta': dict(TH0, **th),   # settings added later at θ0, as in C-1
               'adopted': [a for a in final['adopted'] if a['ep'] in before],
               'lessons': [l for l in final['lessons'] if l.split(':')[0] in before]}
         RL.episodes = lambda: [x for x in rows('learn') if x['ep'] in before] + [e]
@@ -66,7 +74,7 @@ def context(ep):
         st, e = C4.use_dataset(ds, ep)
         fx = RL.logic_facts(e, st)
     extra = []
-    for d in ('learn', 'c2', 'c3'):                       # earlier episodes of every phase
+    for d in [x for x in ('learn', 'c2', 'c3', 'd1', 'd3', 'd4') if os.path.exists(os.path.join(ROOT, x, 'episodes.jsonl'))]:   # earlier episodes of every phase
         for h in rows(d):
             if h['t_start'] >= e['t_start'] or h.get('success') is None:
                 continue
@@ -259,14 +267,15 @@ def main():
             p = os.path.join(OUT, 'manual', ep + '.json')
             m = json.load(open(p))
             check_one(ep, m['answer'], '\n'.join(t + '.' for t in m['argument']), 'manual')
-    elif a[0] == 'ask':
+    elif a[0] in ('ask', 'ask_openai'):           # ask_openai: D-5 (c), the same prompt to the OpenAI model
+        backend, tag = ('openai', 'openai') if a[0] == 'ask_openai' else ('claude', 'llm')
         n = int(a[1]) if len(a) > 1 else 1
         for ep in a[2:] or list(CASES):
             for k in range(n):
                 e, st, fx, extra = context(ep)
-                ans, usage = RL.ask_advisor(e, st, extra=ASK, fx=fx)
+                ans, usage = RL.ask_advisor(e, st, extra=ASK, fx=fx, backend=backend)
                 terms = [str(t).strip().rstrip('.') for t in ans.get('argument') or []]
-                rec = check_one(ep, ans, '\n'.join(t + '.' for t in terms), 'llm')
+                rec = check_one(ep, ans, '\n'.join(t + '.' for t in terms), tag)
                 print('usage', usage)
     elif a[0] == 'show':
         for l in open(os.path.join(OUT, 'argue.jsonl')):

@@ -32,7 +32,7 @@ def state_before(ep, final):
 
 
 def one(ep, k, st, e, fx):
-    rec = {'ep': ep, 'run': k, 't': time.strftime('%Y-%m-%dT%H:%M:%S'), 'model': RL.MODEL, 'theta_before': st['theta'],
+    rec = {'ep': ep, 'run': k, 't': time.strftime('%Y-%m-%dT%H:%M:%S'), 'model': (__import__('openai_advisor').MODEL if os.environ.get('ADVISOR') == 'openai' else RL.MODEL), 'theta_before': st['theta'],
            'tries': []}
     ans, use = RL.ask_advisor(e, st, fx=fx)
     rec['answer'], rec['usage'] = ans, [use]
