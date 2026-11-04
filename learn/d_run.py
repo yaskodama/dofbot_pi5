@@ -9,7 +9,7 @@
 #                                                          human and LLM in a random order; one run when they agree)
 #   python3 learn/d_run.py point|run STAGE EP              (a re-run after a board stop is EPr, EPr2, ...)
 #   python3 learn/d_run.py seen STAGE EP ok|ng [note]
-#   python3 learn/d_run.py status STAGE
+#   python3 learn/d_run.py status STAGE                    the arm / θ is hidden (D-3, D-4) unless REVEAL=1
 import sys, os, json, re, random
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -87,6 +87,8 @@ def plan_d3(seed):
     cases = json.load(open(os.path.join(ROOT, 'd3', 'cases.json')))
     rng = random.Random(seed)
     rows = []
+    # episode ids are neutral (Y01, Y02, ...): the operator is told only the id and the place, never the arm
+    # (protocol D_v1 addendum 11/5, one expert). The arm stays in the plan and in arms.jsonl.
     for c in sorted(cases):
         x = cases[c]
         rows.append({'ep': c + 'c', 'case': c, 'arm': 'control', 'color': x['color'], 'pos': x['pos'], 'theta': x['theta']})
@@ -96,6 +98,8 @@ def plan_d3(seed):
         for name, ch in arms:
             rows.append({'ep': c + {'human': 'h', 'llm': 'l', 'human+llm': 'hl'}[name], 'case': c, 'arm': name,
                          'color': x['color'], 'pos': x['pos'], 'theta': dict(x['theta'], **ch), 'change': ch})
+    for k, r in enumerate(rows, 1):
+        r['ep'] = 'Y%02d' % k
     save('d3', {'stage': 'd3', 'seed': seed, 'rows': rows})
     print('d3: %d cases, %d episodes' % (len(cases), len(rows)))
 
@@ -110,8 +114,8 @@ def status(stage):
     for r in load(stage)['rows']:
         tries = [eps[k] for k in eps if SUFFIX.sub('', k) == r['ep'] or k == r['ep']]
         res = ' '.join('%s:%s' % (e['ep'], {True: 'ok', False: 'ng', None: 'ran'}[e['success']]) for e in tries) or '-'
-        print('%-6s %-5s %-6s %-12s %-8s %s' % (r['ep'], r['color'], r['pos'], r.get('theta_name') or r.get('arm') or '',
-                                                 r.get('condition') or '', res))
+        arm = (r.get('theta_name') or r.get('arm') or '') if os.environ.get('REVEAL') == '1' or stage == 'd1' else '(hidden)'
+        print('%-6s %-5s %-6s %-12s %-8s %s' % (r['ep'], r['color'], r['pos'], arm, r.get('condition') or '', res))
 
 
 def main():

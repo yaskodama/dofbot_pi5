@@ -9,7 +9,9 @@
 import sys, os, json, random
 
 SEED = int(sys.argv[1]) if len(sys.argv) > 1 else 20261117
-PLACES = [('green', 'H1'), ('green', 'H2'), ('green', 'H3'), ('blue', 'P2'), ('blue', 'H2')]
+# blue 14.5:130 replaces blue H2 (protocol D_v1 addendum 11/5): an inner-edge place never used in learning, C-2 or C-3
+# (no episode before at 14.5 cm, base 130). If the 11/6 trial shows it unreachable, the fallback declared there is 14.5:100.
+PLACES = [('green', 'H1'), ('green', 'H2'), ('green', 'H3'), ('blue', 'P2'), ('blue', '14.5:130')]
 THETAS = ['theta0', 'theta_star6', 'theta_star7']
 OUT = os.path.expanduser('~/paper1_sim2real/data/d4/order.json')
 
