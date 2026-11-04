@@ -12,7 +12,7 @@
 %   past/5 (Ep, ok|ng, Color, Rcm, Base), past_setting/3, past_sign/2 (what an earlier episode's logs show); the advisor's answer: hyp/1, claims/2, change/2.
 :- discontiguous explains/2.
 :- dynamic est/2, clamped/1.
-:- dynamic color/1, at/2, setting/2, sym/1, ev/1, past/5, past_setting/3, past_sign/2, hyp/1, claims/2, change/2.
+:- dynamic color/1, at/2, setting/2, sym/1, ev/1, past/5, past_setting/3, past_sign/2, past_stopped/1, hyp/1, claims/2, change/2.
 
 % ---- the vocabulary of causes ----
 % setting causes: Cause, the setting it blames, the direction a fix must take
@@ -79,10 +79,11 @@ refuted(C, Ep) :-
     \+ mixed(C, K, V).
 % addendum (2026-11-04, D_v1 before freezing): a success is no evidence against C where the same setting value has also
 % failed with C's sign at the same place (and color, for color settings): the outcome there is mixed, not settled.
-% C19: C03, C04, C07, C08, C15, C16 succeeded without the inner row, but C12 at the same place missed it with that setting.
+% A failure where the arm board stopped is no such evidence (review 2026-11-04: C12, first cited for C19, was a board
+% stop before the arm moved, so its "missed row" says nothing about the row; with it excluded C19 stays refuted).
 mixed(C, K, V) :-
     at(R0, B0), sign_of(C, S),
-    past(Ep2, ng, Col2, R2, B2), past_setting(Ep2, K, V), past_sign(Ep2, S),
+    past(Ep2, ng, Col2, R2, B2), \+ past_stopped(Ep2), past_setting(Ep2, K, V), past_sign(Ep2, S),
     abs(R2 - R0) =< 1.0, abs(B2 - B0) =< 10,
     ( color_specific(C) -> color(Col2) ; true ).
 sign_of(inner_edge_unclamped, gave_up_reach(_)).

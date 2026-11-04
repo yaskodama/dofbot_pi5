@@ -154,6 +154,8 @@ def extract(e, real_log, cs_log, theta, history, grasp_ok=None, defaults=None, p
         h = dict(h, theta=dict(defaults or {}, **(h.get('theta') or {})))   # settings added later had their θ0 value then
         F.append('past(%s, %s, %s, %s, %s).' % (h['ep'].lower(), 'ok' if h['success'] else 'ng', h['color'],
                                                 _num(float(h['r_cm'])), h['base']))
+        if h.get('board_stopped'):                                   # its signs say nothing about θ (2026-11-04 review)
+            F.append('past_stopped(%s).' % h['ep'].lower())
         for k, v in (h.get('theta') or {}).items():
             F.append('past_setting(%s, %s, %s).' % (h['ep'].lower(), k, _val(k, v)))
         for x in (past_signs or {}).get(h['ep'], []):

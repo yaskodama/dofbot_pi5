@@ -31,7 +31,7 @@ for f in ['llm.jsonl', 'openai.jsonl']:
                     adopted, how = a['change'], name; break
                 if name == 'first' and r.get('revision') is None: how = 'first rejected, no stored revision'
             res.append({'file': f, 'ep': ep, 'run': r['run'], 'old': r['adopted'], 'new': adopted, 'how': how})
-json.dump(res, open(D + 'rejudge_20261104.json', 'w'), ensure_ascii=False, indent=0)
+json.dump(res, open(D + os.environ.get('REJ_OUT', 'rejudge_20261104.json'), 'w'), ensure_ascii=False, indent=0)
 for f in ['llm.jsonl', 'openai.jsonl']:
     for ep in sorted({x['ep'] for x in res}):
         xs = [x for x in res if x['file'] == f and x['ep'] == ep]
