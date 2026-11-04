@@ -106,8 +106,10 @@ def extract(e, real_log, cs_log, theta, history, grasp_ok=None, defaults=None, p
         ev.append('clamped(%.1f)' % float(r))
     # C-4 (2026-11-03): the cube is at the inner edge (scheduled <= 15 cm), the 16 cm row never saw it, only glimpses did,
     # and no inner row was shot
+    # addendum (2026-11-04, D_v1 before freezing): a row "sees" the cube only with a blob (N px); a "skip R cm" entry is a
+    # sighting it discarded, and the cube need not have been glimpsed at all (C12 saw nothing and was not marked before)
     if (float(e['r_cm']) <= 15.0 and 'survey 14 cm' not in cs and 'survey 16 cm' in cs
-            and not re.search(r'survey 16 cm base \d+: [^\n]*%s\(' % col, cs) and re.search(r'glimpse: %s at' % col, cs)):
+            and not re.search(r'survey 16 cm base \d+: [^\n]*%s\(\d+ px' % col, cs)):
         ev.append('survey_row_missed(%s)' % _num(float(e['r_cm'])))
     est = [(float(x), float(z)) for x, z in re.findall(r'round \d+: base \d+ look .*?-> cube \((-?[\d.]+), (-?[\d.]+)\)', cs)]
     rounds = theta.get('refine_rounds', 7)

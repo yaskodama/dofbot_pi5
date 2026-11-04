@@ -75,7 +75,16 @@ refuted(C, Ep) :-
     past(Ep, ok, Col, R, B), past_setting(Ep, K, V),
     abs(R - R0) =< 1.0, abs(B - B0) =< 10,
     ( color_specific(C) -> color(Col) ; true ),
-    \+ ( sign_of(C, S), past_sign(Ep, S) ).
+    \+ ( sign_of(C, S), past_sign(Ep, S) ),
+    \+ mixed(C, K, V).
+% addendum (2026-11-04, D_v1 before freezing): a success is no evidence against C where the same setting value has also
+% failed with C's sign at the same place (and color, for color settings): the outcome there is mixed, not settled.
+% C19: C03, C04, C07, C08, C15, C16 succeeded without the inner row, but C12 at the same place missed it with that setting.
+mixed(C, K, V) :-
+    at(R0, B0), sign_of(C, S),
+    past(Ep2, ng, Col2, R2, B2), past_setting(Ep2, K, V), past_sign(Ep2, S),
+    abs(R2 - R0) =< 1.0, abs(B2 - B0) =< 10,
+    ( color_specific(C) -> color(Col2) ; true ).
 sign_of(inner_edge_unclamped, gave_up_reach(_)).
 sign_of(tilt_step_too_coarse, no_grasp(_)).
 sign_of(refine_too_weak, empty_grip).
