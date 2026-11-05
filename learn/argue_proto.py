@@ -25,7 +25,8 @@ D_RECORDED = {'A01': 'learn', 'A02': 'learn', 'B02': 'learn', 'B05': 'learn', 'B
 CASES.update(D_RECORDED)
 if os.path.exists(os.path.join(os.path.expanduser('~/paper1_sim2real/data'), 'd1', 'episodes.jsonl')):
     CASES.update({json.loads(x)['ep']: 'd1' for x in open(os.path.expanduser('~/paper1_sim2real/data/d1/episodes.jsonl'))
-                  if json.loads(x).get('success') is False})
+                  if json.loads(x).get('success') is False and not json.loads(x).get('board_stopped')
+                  and not json.loads(x)['ep'].startswith('T')})       # board stops and the trials T01-T05 are not cases
 TH0 = {k: v[1] for k, v in TH.SCHEMA.items()}
 
 
