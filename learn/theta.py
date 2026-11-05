@@ -42,6 +42,12 @@ SCHEMA = {
     'survey_inner_ring_cm': (0.0, 0.0, 0.0, 15.0, 'float',
                        'add a survey row of 5 looks (base 50-130) at this radius before the 16 cm and 21 cm rows, and make it '
                        'the closest radius of the go-back look after a glimpse (was 16 cm); 0 = no inner row'),
+    # added 2026-11-05 for Phase D's advice loop (protocol D_v1 addendum 11/5 17:00): the defaults are the behaviour before
+    'survey_half_deg': (40, 40, 20, 70, 'int',
+                       'half-width (deg) of the survey: its rows look from base 90-H to 90+H (the camera sees about 5 deg '
+                       'beyond the last look); 40 = base 50-130'),
+    'survey_outer_cm': (21.0, 21.0, 19.0, 23.5, 'float',
+                       'radius (cm) of the outer survey row, and the farthest radius of the go-back look after a glimpse'),
 }
 
 _cache = {'mtime': None, 'vals': {}}

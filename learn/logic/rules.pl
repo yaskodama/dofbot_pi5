@@ -28,10 +28,14 @@ setting_cause(refine_overshoot,         refine_gain,    down).
 setting_cause(inner_angle_unrefined,    inner_refine_angle, up).   % C-1 (2026-11-01)
 setting_cause(inner_radius_underread,   inner_r_bias_cm,    up).   % C-1 (2026-11-01)
 setting_cause(inner_out_of_view,        survey_inner_ring_cm, up). % C-4 (2026-11-03)
+setting_cause(survey_too_narrow,        survey_half_deg, up).      % Phase D loop (2026-11-05)
+setting_cause(survey_outer_too_close,   survey_outer_cm, up).      % Phase D loop (2026-11-05)
 other_cause(board_stop).            % the arm's servo board stopped (hardware)
 other_cause(grip_miss).             % the fingers closed beside the cube (physical: slip, push, offset)
 other_cause(operator_placement).    % the cube was not where the schedule says, or the verdict disagrees with the logs
 other_cause(unknown).
+other_cause(background_same_color). % the cube lies on a surface of its own color (environment; 2026-11-05)
+other_cause(lighting).              % too dark / uneven light (environment; 2026-11-05)
 cause(C) :- setting_cause(C, _, _) ; other_cause(C).
 color_specific(blue_floor_too_high). color_specific(green_sat_floor_too_high). color_specific(blob_size_floor_too_high).
 
@@ -60,6 +64,14 @@ explains(inner_radius_underread, gave_up_reach(R)) :-
 % C-4 (2026-11-03): the cube lies at the inner edge, no look of the 16 cm row saw it (only glimpses while moving), and there is no inner row
 explains(inner_out_of_view, not_seen) :-
     sym(not_seen), ev(survey_row_missed(_)), setting(survey_inner_ring_cm, Rg), Rg =:= 0.
+% Phase D loop (2026-11-05): the scheduled place is outside the survey (the camera sees about 5 deg beyond its last look;
+% T02 at 135 deg was seen from 130), or beyond the outer row (22-23 cm were seen from 21 cm: N03, T02)
+explains(survey_too_narrow, not_seen) :-
+    sym(not_seen), at(_, B), setting(survey_half_deg, H), abs(B - 90) > H + 5.
+explains(survey_outer_too_close, not_seen) :-
+    sym(not_seen), at(R, _), setting(survey_outer_cm, Ro), R > Ro + 2.0.
+explains(background_same_color, not_seen) :- sym(not_seen), ev(large_surface(_)).
+explains(lighting, not_seen) :- sym(not_seen), ev(blue_below_floor(N, _, _)), N >= 20.
 explains(board_stop, S) :- sym(board_stop), sym(S), S \= risk(_).
 explains(grip_miss, empty_grip) :- sym(empty_grip).
 explains(operator_placement, S) :- sym(S), memberchk(S, [not_seen, wrong_zone, failed_visual, empty_grip]).
@@ -130,6 +142,8 @@ effective(inner_radius_underread, inner_r_bias_cm, New) :- !,   % must reach the
     \+ ( sym(gave_up_reach(R3)), R3 + New > R0 + 1.0 ).
 effective(inner_out_of_view, survey_inner_ring_cm, New) :- !,   % a look pose exists, and the row is not beyond the cube
     New >= 13.8, at(R0, _), New =< R0.
+effective(survey_too_narrow, survey_half_deg, New) :- !, at(_, B), abs(B - 90) =< New + 5.
+effective(survey_outer_too_close, survey_outer_cm, New) :- !, at(R, _), R =< New + 2.0.
 effective(_, _, _).
 
 % ---- abduction without the LLM: every minimal acceptable explanation (up to 2 causes) ----

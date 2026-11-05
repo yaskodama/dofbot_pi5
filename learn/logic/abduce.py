@@ -26,6 +26,10 @@ CAUSES = {
                               'edge (inner_r_bias_cm too small)',
     'inner_out_of_view': 'the cube lay at the inner edge where no look of the survey rows saw it (only glimpses while the arm moved); '
                          'the survey has no inner row (survey_inner_ring_cm 0)',
+    'survey_too_narrow': 'the cube lay outside the angles the survey looks at (survey_half_deg too small)',
+    'survey_outer_too_close': 'the cube lay beyond the outer survey row (survey_outer_cm too small)',
+    'background_same_color': 'the cube lay on a surface of its own color, ignored as a large surface (environment)',
+    'lighting': 'the light is too dark or uneven for the cube\'s color (environment)',
     'board_stop': 'the arm servo board stopped (hardware)',
     'grip_miss': 'the fingers closed beside the cube although it had been located (physical: slip, push, offset)',
     'operator_placement': 'the cube was not where the schedule says, or the operator verdict disagrees with the logs',
@@ -98,6 +102,9 @@ def extract(e, real_log, cs_log, theta, history, grasp_ok=None, defaults=None, p
         drop += [float(r) for r in re.findall(r'glimpse: %s at ([\d.]+) cm' % col, cs)]
     for r in sorted(set(round(r, 1) for r in drop if r < lim)):
         ev.append('dropped_inside(%.1f)' % r)
+    # 2026-11-05: a blob of the cube's color spanning the whole image (a mat of the same color) was ignored as a surface
+    if re.search(r'%s large surface ignored' % col, cs):
+        ev.append('large_surface(%s)' % col)
     # where the survey put the cube, and inner-edge clamps (C-1, 2026-11-01); compared with the scheduled place at/2 by the rules
     for res in re.findall(r'survey result: \[([^\]]*)\]', cs):
         for r, b in re.findall(r"'%s ([\d.]+)cm base (\d+)'" % col, res):

@@ -298,6 +298,7 @@ def blob(px, W, H, rot180, want=None, min_frac=None):
     # A blob spanning >= 85% of the image both vertically and horizontally is a large surface (book, box, mat), not a cube.
     # 2026-09-29: a green book beside the left drop-off spot was judged to be the green cube
     if max(us) - min(us) >= 0.85 * W and max(vs) - min(vs) >= 0.85 * H:
+        LAST_REJ['surface'] = (col, len(p))        # 2026-11-05: logged by the survey (a cube on a mat of its own color)
         return None
     return sum(us) / len(us), sum(vs) / len(vs), col, len(p), (min(us), max(us), min(vs), max(vs))
 
@@ -437,7 +438,10 @@ def survey(move_fn, shoot_fn, rot180=False, log=print, glimpse_fn=None, want=Non
     prev = None
     seen_uv = []                                   # (color, u, v, base) where in the image it appeared
     ring = TH.get('survey_inner_ring_cm') / 100.0          # θ survey_inner_ring_cm (C-3, 2026-11-03): 0 = the 8 spots only
-    spots = ([(ring, yy) for yy in (40, 20, 0, -20, -40)] if ring > 0 else []) + SURVEY
+    h, outer = TH.get('survey_half_deg'), TH.get('survey_outer_cm') / 100.0   # θ (2026-11-05): 40 / 21 = the spots before
+    row = [-h, -int(round(h / 3.0)), int(round(h / 3.0)), h]
+    spots = (([(ring, yy) for yy in (h, int(round(h / 2.0)), 0, -int(round(h / 2.0)), -h)] if ring > 0 else []) +
+             [(0.16, yy) for yy in row] + [(outer, yy) for yy in reversed(row)])
     for r, yy in spots:
         s1 = 90 + yy
         look = poses(r)[0]
@@ -465,6 +469,8 @@ def survey(move_fn, shoot_fn, rot180=False, log=print, glimpse_fn=None, want=Non
         for col in ('green', 'blue'):
             b = blob(px, W, H, rot180, col)
             if not b:
+                if LAST_REJ.get('surface') and LAST_REJ['surface'][0] == col:
+                    seen.append('%s large surface ignored (%d px)' % (col, LAST_REJ['surface'][1]))
                 if col == 'blue' and LAST_REJ.get('blue') and LAST_REJ['blue'][0] >= 20:
                     n_, lo_, hi_ = LAST_REJ['blue']
                     seen.append('blue-hued px below the value floor: %d (value %.2f-%.2f)' % (n_, lo_, hi_))
@@ -501,7 +507,7 @@ def survey(move_fn, shoot_fn, rot180=False, log=print, glimpse_fn=None, want=Non
     for g in sorted(glimpses, key=lambda d: -d['n']):
         if g['color'] in have or (want and g['color'] != want):
             continue
-        rr = min(max(math.hypot(g['x'], g['z']), ring if ring > 0 else 0.16), 0.21)   # C-3: the real camera at 16 cm misses 14.5 cm
+        rr = min(max(math.hypot(g['x'], g['z']), ring if ring > 0 else 0.16), max(0.21, TH.get('survey_outer_cm') / 100.0))   # C-3: the real camera at 16 cm misses 14.5 cm
         s1 = round(90 + math.degrees(math.atan2(-g['z'], g['x'])))
         look = poses(rr)[0]
         if not look:

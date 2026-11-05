@@ -79,7 +79,7 @@ def index():
         rows.append('<tr><td><a href="/case/%s">%s</a></td><td>%s</td><td>%s</td></tr>'
                     % (c, c, kind, '<span class="ok">記入済み</span>' if done else '―'))
     return page('助言の記入', '<h1>助言の記入（選択式）</h1><p>事例を選んでください。LLM の答えはどこにも表示しません。</p>'
-                '<table><tr><th>事例</th><th>区分</th><th>状態</th></tr>%s</table>' % ''.join(rows))
+                '<table><tr><th>事例</th><th>区分</th><th>状態</th></tr>%s</table><p><a href="/loop">助言のループ（実機で成功するまで）</a></p>' % ''.join(rows))
 
 
 def episode_log(ep):
@@ -162,6 +162,49 @@ def save(ep, q):
                    rec['minutes'], ep))
 
 
+def loop_index():
+    import d3_loop as DL
+    rows = []
+    for f in sorted(os.listdir(DL.path('state'))) if os.path.isdir(DL.path('state')) else []:
+        s = json.load(open(DL.path('state', f)))
+        a = s['arms']['h']
+        st = (a['done'] or ('助言を待っています（次は %d 回目）' % (a['rounds'] + 1) if not a.get('advised') else '実行待ち'))
+        if not s['arms']['c']['done']:
+            st = '対照の実行待ち'
+        rows.append('<tr><td><a href="/loop/%s">%s</a></td><td>%s %s</td><td>%s</td></tr>'
+                    % (s['case'], s['case'], s['color'], s['pos'], html.escape(st)))
+    return page('助言のループ', '<h1>助言のループ（人）</h1><p><a href="/">記入用紙の一覧</a></p>'
+                '<table><tr><th>事例</th><th>立方体と置き場所</th><th>状態</th></tr>%s</table>' % ''.join(rows))
+
+
+def loop_page(case, msg=''):
+    import d3_loop as DL
+    s = DL.load(case)
+    a = s['arms']['h']
+    hist = []
+    for r in [json.loads(l) for l in open(DL.path('rounds.jsonl'))] if os.path.exists(DL.path('rounds.jsonl')) else []:
+        if r.get('case') == case and r.get('arm') == 'h' and 'advice' in r:
+            hist.append('<li>%d 回目の助言: %s%s</li>' % (r['round'], html.escape('、'.join(r['advice']) or '（なし）'),
+                                                       html.escape(' ／ ' + r['free_env'] if r.get('free_env') else '')))
+        elif r.get('case') == case and r.get('arm') in ('c', 'h') and 'ok' in r:
+            hist.append('<li>実行 %s: <b>%s</b>%s</li>' % (r['ep'], '成功' if r['ok'] else '失敗', '（基板停止）' if r['board_stopped'] else ''))
+    B = ['<p><a href="/loop">← ループの一覧</a></p><h1>事例 %s（%s、%s）</h1>' % (case, s['color'], s['pos']),
+         '<p>%s</p>' % html.escape(msg) if msg else '', '<h2>これまで</h2><ul>%s</ul>' % ''.join(hist)]
+    if a['done']:
+        B.append('<p><b>%s</b></p>' % html.escape(a['done']))
+    elif a.get('advised'):
+        B.append('<p>助言を受け付けました。実機での実行を待っています。</p>')
+    elif not s['arms']['c']['done']:
+        B.append('<p>対照（助言なし）の実行を待っています。</p>')
+    else:
+        B.append('<form method="post" action="/loop/%s"><h2>%d 回目の助言（当てはまるものを選ぶ。複数可）</h2>' % (case, a['rounds'] + 1))
+        for pid, ja, what in DL.PHRASES:
+            B.append('<label><input type="checkbox" name="p" value="%s"> %s%s</label><br>'
+                     % (pid, ja, ' <span class="muted">（環境）</span>' if what == 'env' else ''))
+        B.append('<p>その他の環境の変更（自由文）: <input name="free_env" size="50"></p><button type="submit">この助言で実行する</button></form>')
+    return page('ループ ' + case, ''.join(B))
+
+
 class H(BaseHTTPRequestHandler):
     def send(self, text, ctype='text/html; charset=utf-8', code=200):
         b = text.encode('utf-8')
@@ -173,6 +216,11 @@ class H(BaseHTTPRequestHandler):
         try:
             if p == '/':
                 return self.send(index())
+            if p == '/loop':
+                return self.send(loop_index())
+            m = re.match(r'/loop/(\w+)$', p)
+            if m:
+                return self.send(loop_page(m.group(1)))
             m = re.match(r'/(case|material|material_ja)/(\w+)$', p)
             if m and m.group(2) in F.P.CASES:
                 if m.group(1) == 'case':
@@ -184,6 +232,17 @@ class H(BaseHTTPRequestHandler):
             self.send('error: %r' % x, 'text/plain; charset=utf-8', 500)
 
     def do_POST(self):
+        m = re.match(r'/loop/(\w+)$', self.path)
+        if m:
+            import d3_loop as DL
+            n = int(self.headers.get('Content-Length') or 0)
+            q = urllib.parse.parse_qs(self.rfile.read(n).decode('utf-8'), keep_blank_values=True)
+            try:
+                change, env = DL.human(m.group(1), q.get('p', []), (q.get('free_env') or [''])[0].strip())
+                msg = '受け付けました。'
+            except SystemExit as x:
+                msg = str(x)
+            return self.send(loop_page(m.group(1), msg))
         m = re.match(r'/save/(\w+)$', self.path)
         if not (m and m.group(1) in F.P.CASES):
             return self.send('not found', 'text/plain', 404)
