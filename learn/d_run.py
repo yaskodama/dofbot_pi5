@@ -139,7 +139,7 @@ def main():
     elif cmd == 'seen':
         bind(a[1], a[2]); RL.seen(a[2], a[3], ' '.join(a[4:]))
     elif cmd == 'status':
-        status(a[1])
+        status(a[1] if len(a) > 1 else 'd1')
 
 
 if __name__ == '__main__':
