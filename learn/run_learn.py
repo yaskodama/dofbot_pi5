@@ -24,6 +24,7 @@ STATE = os.path.join(DATA, 'state.json')
 ADVICE = os.path.join(DATA, 'advice.jsonl')
 CSLOG = os.path.join(ROOT, 'color_service.log')
 MODEL = 'claude-opus-5-5'
+ONLY_REAL = False                                  # Phase D (D_v1 addendum 11/5): skip the simulator and its gate
 
 POS = {'P1': (17, 90), 'P2': (15, 70), 'P3': (20, 110), 'P4': (17, 55), 'P5': (20, 125),
        'H2': (15, 110), 'H3': (14.5, 90),           # (cm from the base axis, base deg); H* = near the inner edge
@@ -102,7 +103,8 @@ def run(ep):
         with open(log, 'w') as f:
             try:
                 rc = subprocess.run([sys.executable, '-u', os.path.join(ROOT, 'agent', 'dock.py'), '--cubes', color,
-                                     '--at', '%s:%s:%d' % (color, r, base), '--summary', summ],
+                                     '--at', '%s:%s:%d' % (color, r, base), '--summary', summ] +
+                                    (['--only', 'real'] if ONLY_REAL else []),
                                     stdout=f, stderr=subprocess.STDOUT, timeout=1500).returncode
             except subprocess.TimeoutExpired:
                 rc = 'timeout'

@@ -9,6 +9,7 @@
 #                                                          human and LLM in a random order; one run when they agree)
 #   python3 learn/d_run.py point|run STAGE EP              (a re-run after a board stop is EPr, EPr2, ...)
 #   python3 learn/d_run.py seen STAGE EP ok|ng [note]
+#   python3 learn/d_run.py sim STAGE EP|all on|off         run these rows with the simulator and its gate (default: real only)
 #   python3 learn/d_run.py status STAGE                    the arm / θ is hidden (D-3, D-4) unless REVEAL=1
 import sys, os, json, re, random
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -24,6 +25,9 @@ THETAS = {'theta0': dict(TH0),
                               inner_r_bias_cm=1.0, survey_inner_ring_cm=14.0, tilt_step_deg=1)}
 THETAS['theta_star6'] = dict(THETAS['theta_star7'], survey_inner_ring_cm=0.0)
 SUFFIX = re.compile(r'r\d*$')
+# From N05 (protocol D_v1 addendum 11/5 14:40) the simulator run and its gate are skipped: since 10/27 it passed 130 of 130
+# and the agent's behaviour on the real arm does not depend on it. SIM=1 brings it back for a run.
+RL.ONLY_REAL = os.environ.get('SIM') != '1'
 
 
 def plan_path(stage):
@@ -65,6 +69,7 @@ def bind(stage, ep):
     RL.EPS = os.path.join(RL.DATA, 'episodes.jsonl')
     RL.SCHED = [(ep, stage, r['color'], place(r['pos']))]       # mode = the stage, never 'control' (that forces θ0)
     RL.state = lambda: {'theta': dict(r['theta']), 'adopted': [], 'lessons': []}
+    RL.ONLY_REAL = not (r.get('sim') or os.environ.get('SIM') == '1')    # a row marked sim (or SIM=1) runs the simulator too
     return r
 
 
@@ -100,6 +105,9 @@ def plan_d3(seed):
                          'color': x['color'], 'pos': x['pos'], 'theta': dict(x['theta'], **ch), 'change': ch})
     for k, r in enumerate(rows, 1):
         r['ep'] = 'Y%02d' % k
+        # recorded cases (L1 / C-3, run with the simulator) are re-run with it; new D-1 cases (N.., T..) without
+        # (protocol D_v1 addendum 11/5 14:50, the operator's choice)
+        r['sim'] = not r['case'].startswith(('N', 'T'))
     save('d3', {'stage': 'd3', 'seed': seed, 'rows': rows})
     print('d3: %d cases, %d episodes' % (len(cases), len(rows)))
 
@@ -115,7 +123,8 @@ def status(stage):
         tries = [eps[k] for k in eps if SUFFIX.sub('', k) == r['ep'] or k == r['ep']]
         res = ' '.join('%s:%s' % (e['ep'], {True: 'ok', False: 'ng', None: 'ran'}[e['success']]) for e in tries) or '-'
         arm = (r.get('theta_name') or r.get('arm') or '') if os.environ.get('REVEAL') == '1' or stage == 'd1' else '(hidden)'
-        print('%-6s %-5s %-6s %-12s %-8s %s' % (r['ep'], r['color'], r['pos'], arm, r.get('condition') or '', res))
+        print('%-6s %-5s %-6s %-12s %-8s %-4s %s' % (r['ep'], r['color'], r['pos'], arm, r.get('condition') or '',
+                                                  'sim' if r.get('sim') else '', res))
 
 
 def main():
@@ -138,6 +147,13 @@ def main():
         r = bind(a[1], a[2]); note(a[1], a[2], r); RL.run(a[2])
     elif cmd == 'seen':
         bind(a[1], a[2]); RL.seen(a[2], a[3], ' '.join(a[4:]))
+    elif cmd == 'sim':                                     # sim STAGE EP|all on|off: mark rows to run with the simulator
+        p = load(a[1])
+        for r in p['rows']:
+            if a[2] in ('all', r['ep']):
+                r['sim'] = a[3] == 'on'
+        save(a[1], p)
+        print('sim', a[3], a[2])
     elif cmd == 'status':
         status(a[1] if len(a) > 1 else 'd1')
 
