@@ -295,6 +295,9 @@ def ask_advisor(e, st, extra='', hints=True, fx=None, backend=None):
     if backend == 'openai':                       # Phase D-5 (c): the same prompt to another LLM (protocol D_v1 addendum 11/4)
         import openai_advisor
         text, usage = openai_advisor.call(prompt)
+    elif backend == 'gemini':                     # a third model family (protocol D_v1 addendum 11/5 16:00)
+        import gemini_advisor
+        text, usage = gemini_advisor.call(prompt)
     else:
         import anthropic
         c = anthropic.Anthropic()

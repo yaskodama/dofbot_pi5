@@ -6,7 +6,7 @@
 #
 # Same loop as C-1 (c1_replay.one): the advisor prompt with the argument-term instructions (argue_proto.ASK, the same text
 # the human's material shows), the logic check and the gate, one revision after a rejection. The arguments of the first
-# answer and of the revision are then checked by argue.pl (argue_proto.check_one, tag d2-llm). ADVISOR=openai switches the
+# answer and of the revision are then checked by argue.pl (argue_proto.check_one, tag d2-llm). ADVISOR=openai|gemini switches the
 # model (D-5 c). Writes data/d2/llm.jsonl; never writes state.json.
 import sys, os, json, time, threading
 from collections import Counter
@@ -22,7 +22,8 @@ LOCK = threading.Lock()
 
 
 def model():
-    return __import__('openai_advisor').MODEL if os.environ.get('ADVISOR') == 'openai' else RL.MODEL
+    b = os.environ.get('ADVISOR')
+    return __import__(b + '_advisor').MODEL if b in ('openai', 'gemini') else RL.MODEL
 
 
 def one(ep, k, st, e, fx):
@@ -61,7 +62,7 @@ def argued(rec):
     """the argument of the answer that was finally judged (the revision if there was one), checked by argue.pl"""
     a = rec.get('revision') or rec['answer']
     terms = [str(t).strip().rstrip('.') for t in a.get('argument') or []]
-    c = P.check_one(rec['ep'], a, '\n'.join(t + '.' for t in terms), 'd2-' + ('openai' if 'gpt' in rec['model'] else 'llm'))
+    c = P.check_one(rec['ep'], a, '\n'.join(t + '.' for t in terms), 'd2-' + ('openai' if 'gpt' in rec['model'] else 'gemini' if 'gemini' in rec['model'] else 'llm'))
     return {'argument': terms, 'failed_checks': c['failed_checks'], 'text': c['text']}
 
 

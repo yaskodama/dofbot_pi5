@@ -146,7 +146,15 @@ def main():
     elif cmd == 'run':
         r = bind(a[1], a[2]); note(a[1], a[2], r); RL.run(a[2])
     elif cmd == 'seen':
-        bind(a[1], a[2]); RL.seen(a[2], a[3], ' '.join(a[4:]))
+        # the advisors read 'visual': it holds the operator's verdict only. Anything else (the assistant's reading of the
+        # logs) goes to claude_note, which no advisor sees (protocol D_v1 addendum 11/5 16:10)
+        bind(a[1], a[2]); RL.seen(a[2], a[3], '先生の目視: ' + ('成功' if a[3] == 'ok' else '失敗'))
+        rows = RL.episodes()
+        for r in reversed(rows):
+            if r['ep'] == a[2]:
+                r['claude_note'] = ' '.join(a[4:]); break
+        with open(RL.EPS, 'w') as f:
+            f.writelines(json.dumps(r, ensure_ascii=False) + '\n' for r in rows)
     elif cmd == 'sim':                                     # sim STAGE EP|all on|off: mark rows to run with the simulator
         p = load(a[1])
         for r in p['rows']:
